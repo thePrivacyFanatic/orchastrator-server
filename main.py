@@ -7,7 +7,7 @@ from os.path import isfile
 from argon2 import PasswordHasher, exceptions
 
 
-connected = set()
+connected: set[websockets.ServerConnection] = set()
 hasher = PasswordHasher()
 
 
