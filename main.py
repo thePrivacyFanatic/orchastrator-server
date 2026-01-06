@@ -21,7 +21,7 @@ async def handler(websocket: websockets.ServerConnection) -> None:
         try:
             phash: str
             salt: str
-            phash, salt = db.execute("SELECT hash,salt FROM  users WHERE username=?", (login["username"],)).fetchone()
+            phash, salt = db.execute("SELECT hash,salt FROM users WHERE username=?", (login["username"],)).fetchone()
             PasswordHasher.verify(hasher, phash, login["password"] + salt)
         except exceptions.VerifyMismatchError:
             return await websocket.close(3000)
