@@ -1,7 +1,7 @@
 import asyncio
 import sqlite3
 import websockets
-from websockets.asyncio.server import serve
+from websockets.asyncio.server import serve, broadcast
 import json
 from os.path import isfile
 from argon2 import PasswordHasher, exceptions
@@ -11,7 +11,7 @@ connected: set[websockets.ServerConnection] = set()
 hasher = PasswordHasher()
 
 
-async def handler(websocket: websockets.ServerConnection) -> None:
+async def on_connect(websocket: websockets.ServerConnection) -> None:
     login = json.loads(await websocket.recv())
     path = f"db/{login["instance"]}.db"
     if (not isfile(path)):
@@ -19,10 +19,10 @@ async def handler(websocket: websockets.ServerConnection) -> None:
         
     with sqlite3.connect(path) as db:
         try:
-            phash: str
+            known_hash: str
             salt: str
-            phash, salt = db.execute("SELECT hash,salt FROM users WHERE username=?", (login["username"],)).fetchone()
-            PasswordHasher.verify(hasher, phash, login["password"] + salt)
+            known_hash, salt = db.execute("SELECT hash,salt FROM users WHERE username=?", (login["username"],)).fetchone()
+            PasswordHasher.verify(hasher, known_hash, login["password"] + salt)
         except exceptions.VerifyMismatchError:
             return await websocket.close(3000)
             
@@ -30,7 +30,7 @@ async def handler(websocket: websockets.ServerConnection) -> None:
 
 
 async def main() -> None:
-    async with serve(handler) as server:
+    async with serve(on_connect) as server:
         await server.serve_forever()
 
 
