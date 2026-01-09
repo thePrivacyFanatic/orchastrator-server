@@ -1,0 +1,4 @@
+db/*
+.vscode
+.venv
+.meypy_cache

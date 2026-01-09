@@ -86,3 +86,6 @@ class Signal(TypedDict):
     sender: int
     content: str
     mtype: MessageType
+
+
+systemUser: User = {"name": "System", "phash": "", "salt": "", "privlage":  Privlage.ADMIN}
