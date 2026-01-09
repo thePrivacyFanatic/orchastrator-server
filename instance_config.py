@@ -29,16 +29,17 @@ def main():
 
             with sqlite3.connect(path) as db:
 
-                db.executescript("""
-                    CREATE TABLE users (uid INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, hash TEXT, salt TEXT, privlage INTEGER);
-                    CREATE TABLE signals (sid INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, sender INTEGER, contents TEXT, type INTEGER)
+                db.execute("""
+                    CREATE TABLE users (uid INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, hash TEXT, salt TEXT, privlage INTEGER);
+                    CREATE TABLE signals (sid INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, sender INTEGER, contents TEXT, type INTEGER);
+                    CREATE TABLE objectives (oid INTEGER PRIMARY KEY AUTOINCREMENT, packagename TEXT, implementation BLOB)
                                  """
                     )
                 db.commit()
 
                 print("created tables, setting up users")
 
-                db.execute("INSERT INTO users (username, hash, salt, privlage) VALUES (?, ?, ?, ?)", 
+                db.execute("INSERT INTO users (username, hash, salt, privlage) VALUES (?, ?, ?, ?)",
                            tuple(systemUser.values()))
                 # adding the system as a user
 
