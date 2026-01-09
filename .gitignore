@@ -2,3 +2,4 @@ db/*
 .vscode
 .venv
 .meypy_cache
+__pycache__
