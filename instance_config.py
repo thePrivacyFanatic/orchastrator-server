@@ -48,7 +48,7 @@ def main():
                 "name": input("type a username, leave empty to finish\n > "),
                 "salt": salt,
                 "phash": PasswordHasher().hash(
-                    password=input("type a password or passphrase\n > "), 
+                    password=input("type a password or passphrase\n > "),
                     salt=salt.encode()),
                 "privlage": Privlage.ADMIN}
 
