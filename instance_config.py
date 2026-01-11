@@ -21,10 +21,8 @@ def main():
                     "r) delete a database\n > ")
     match action.casefold().strip():
         case "n":
-            path = __file__
-            while exists(path):
-                gid = random.randbytes(8).hex()
-                path = f"./db/{gid}.db"
+            gid = random.randbytes(8).hex()
+            path = f"./db/{gid}.db"
             print("generated group ID " + gid) # type: ignore a gid will always be generated
 
             with sqlite3.connect(path) as db:
