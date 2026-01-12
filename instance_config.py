@@ -5,12 +5,9 @@ import sqlite3
 import random
 from secrets import token_hex
 from argon2 import PasswordHasher
-from classes import User, Privlage, Signal, MessageType, systemUser
 
 
-
-
-def main():
+def main() -> None:
     """
     the main function of the instance configuration utility shpped with the server
     """
@@ -32,26 +29,22 @@ def main():
                     CREATE TABLE objectives (oid INTEGER PRIMARY KEY AUTOINCREMENT, packagename TEXT, implementation BLOB)
                                  """
                     )
-                db.commit()
 
                 print("created tables, setting up users")
 
-                db.execute("INSERT INTO users (username, hash, salt, privlage) VALUES (?, ?, ?, ?)",
-                           systemUser)
-                # adding the system as a user
+                username = input("type a username, leave empty to finish\n > ")
 
                 salt = token_hex(16)
                 phash = PasswordHasher().hash(
                     password=input("type a password or passphrase\n > "),
                     salt=salt.encode())
-                admin: User = {
-                "name": input("type a username, leave empty to finish\n > "),
-                "privlage": Privlage.ADMIN}
+                db.executemany("INSERT INTO users (username, hash, salt, privlage) VALUES (?, ?, ?, 0)",
+                           (("System", "", ""), (username, phash, salt)))
 
-                db.execute("INSERT INTO users (username, hash, salt, privlage) VALUES (?, ?, ?, ?)",
-                            (admin["name"], phash, salt, admin["privlage"]))
-                db.commit()
-                print("set up first admin " + admin["name"])
+                print("set up first admin " + username)
+                db.execute("""INSERT INTO signals (timestamp, sender, contents, type) VALUES (unixepoch(), 0, "INITIALLIZED", 0)""")
+                print("marked start")
+
         case "e":
             gid = input("enter the id of the group you want to edit:\n")
         case "r":

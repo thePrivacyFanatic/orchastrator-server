@@ -3,7 +3,7 @@ The file containing the data classes and enums for the data used by the server t
 """
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import NotRequired, TypedDict, NamedTuple
+from typing import Optional
 
 
 
@@ -33,39 +33,20 @@ class MessageType(IntEnum):
     type of a message
     external messages can only be sent by users with privlages moderator and up
 
-    :var INTERNAL: message concerning an automation, encrypted between users
-    :vartype INTERNAL: Literal[0]
+    :var EXECUTIVE: message concerning group configuration, unencrypted, modifies objectives table
+    :vartype EXECUTIVE: Literal[0]
     :var EXTERNAL: message concerning user permissions, unecrypted, modifies the users table
     :vartype EXTERNAL: Literal[1]
-    :var EXECUTIVE: message concerning group configuration, unencrypted, modifies objectives table
-    :vartype EXECUTIVE: Literal[2]
+    :var INTERNAL: message concerning an automation, encrypted between users
+    :vartype INTERNAL: Literal[2]
     """
-    INTERNAL = 0
+    INTERNAL = 2
     EXTERNAL = 1
-    EXECUTIVE = 2
-
-
-class UserEntry(NamedTuple):
-    """
-    a tuple containing the values in a user database entry
-    """
-    uid: int
-    username: str
-    hash: str
-    salt: str
-    privlage: Privlage
-
-
-class SignalEntry(NamedTuple):
-    sid: int
-    timestamp: int
-    sender: int
-    contents: str
-    type: MessageType
+    EXECUTIVE = 0
 
 
 @dataclass
-class User(TypedDict):
+class User:
     """
     class holding data relating to a user
     inherits from TypedDict for seriallizabillity
@@ -74,20 +55,16 @@ class User(TypedDict):
     :vartype uid: NotRequired[int]
     :var name: username
     :vartype name: str
-    :var phash: hash of the password
-    :vartype phash: str
-    :var salt: salt used in the password hashing proccess
-    :vartype salt: str
     :var privlage: user's privlage level, see the enums docstring for more info
     :vartype privlage: Privlage
     """
-    uid: NotRequired[int]
+    uid: Optional[int]
     name: str
     privlage:Privlage
 
 
 @dataclass
-class Signal(TypedDict):
+class Signal:
     """
     a message or signal published by a user with adaquate permissions
 
@@ -102,14 +79,14 @@ class Signal(TypedDict):
     :var mtype: type of message, external messages require special serverside handeling
     :vartype mtype: MessageType
     """
-    sid: NotRequired[int]
-    timestamp: NotRequired[int]
+    sid: Optional[int]
+    timestamp: Optional[int]
     sender: int
     content: str
     mtype: MessageType
 
 @dataclass
-class Login(TypedDict):
+class Login:
     """
     the initial data object sent by the client when connecting
 
@@ -125,4 +102,4 @@ class Login(TypedDict):
     password: str
 
 
-systemUser = UserEntry(0, "System", "", "", Privlage.ADMIN)
+systemUser = User(0, "System", Privlage.ADMIN)

@@ -64,7 +64,7 @@ async def on_connect(websocket: websockets.ServerConnection) -> None:
                         VALUES (unixepoch(), ?, ?, 0)""", (uid, message))
             db.commit()
             row = dict(zip(
-                db.execute("""SELECT (sid, timestamp, sender, contents) 
+                db.execute("""SELECT (sid, timestamp, sender, contents)
                            FROM signals ORDER BY sid DESC LIMIT 1""").fetchone(),
                 ("sid", "timestamp", "sender", "content")))
         broadcast(connections=connected, message=json.dumps(row))
