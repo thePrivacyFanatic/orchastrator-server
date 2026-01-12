@@ -1,7 +1,6 @@
 """
 a CLI utility for configuring the instance as the user 'System'
 """
-from genericpath import exists
 import sqlite3
 import random
 from secrets import token_hex
@@ -21,9 +20,9 @@ def main():
                     "r) delete a database\n > ")
     match action.casefold().strip():
         case "n":
-            gid = random.randbytes(8).hex()
+            gid = random.randbytes(8).hex()  # collision chance is 2^-64 which is tolerable
             path = f"./db/{gid}.db"
-            print("generated group ID " + gid) # type: ignore a gid will always be generated
+            print("generated group ID " + gid)
 
             with sqlite3.connect(path) as db:
 
@@ -38,20 +37,19 @@ def main():
                 print("created tables, setting up users")
 
                 db.execute("INSERT INTO users (username, hash, salt, privlage) VALUES (?, ?, ?, ?)",
-                           tuple(systemUser.values()))
+                           systemUser)
                 # adding the system as a user
 
                 salt = token_hex(16)
+                phash = PasswordHasher().hash(
+                    password=input("type a password or passphrase\n > "),
+                    salt=salt.encode())
                 admin: User = {
                 "name": input("type a username, leave empty to finish\n > "),
-                "salt": salt,
-                "phash": PasswordHasher().hash(
-                    password=input("type a password or passphrase\n > "),
-                    salt=salt.encode()),
                 "privlage": Privlage.ADMIN}
 
                 db.execute("INSERT INTO users (username, hash, salt, privlage) VALUES (?, ?, ?, ?)",
-                            tuple(admin.values()))
+                            (admin["name"], phash, salt, admin["privlage"]))
                 db.commit()
                 print("set up first admin " + admin["name"])
         case "e":

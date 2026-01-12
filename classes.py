@@ -3,7 +3,8 @@ The file containing the data classes and enums for the data used by the server t
 """
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import NotRequired, TypedDict
+from typing import NotRequired, TypedDict, NamedTuple
+
 
 
 class Privlage(IntEnum):
@@ -34,11 +35,33 @@ class MessageType(IntEnum):
 
     :var INTERNAL: message concerning an automation, encrypted between users
     :vartype INTERNAL: Literal[0]
-    :var EXTERNAL: message concerning group config and user permissions, unecrypted
+    :var EXTERNAL: message concerning user permissions, unecrypted, modifies the users table
     :vartype EXTERNAL: Literal[1]
+    :var EXECUTIVE: message concerning group configuration, unencrypted, modifies objectives table
+    :vartype EXECUTIVE: Literal[2]
     """
     INTERNAL = 0
     EXTERNAL = 1
+    EXECUTIVE = 2
+
+
+class UserEntry(NamedTuple):
+    """
+    a tuple containing the values in a user database entry
+    """
+    uid: int
+    username: str
+    hash: str
+    salt: str
+    privlage: Privlage
+
+
+class SignalEntry(NamedTuple):
+    sid: int
+    timestamp: int
+    sender: int
+    contents: str
+    type: MessageType
 
 
 @dataclass
@@ -60,8 +83,6 @@ class User(TypedDict):
     """
     uid: NotRequired[int]
     name: str
-    phash:str
-    salt:str
     privlage:Privlage
 
 
@@ -87,5 +108,21 @@ class Signal(TypedDict):
     content: str
     mtype: MessageType
 
+@dataclass
+class Login(TypedDict):
+    """
+    the initial data object sent by the client when connecting
 
-systemUser: User = {"name": "System", "phash": "", "salt": "", "privlage":  Privlage.ADMIN}
+    :var gid: the gid of the group they are connecting to
+    :vartype gid: int
+    :var username: the user's username
+    :vartype username: str
+    :var password: the user's password
+    :vartype password: str
+    """
+    gid: int
+    username: str
+    password: str
+
+
+systemUser = UserEntry(0, "System", "", "", Privlage.ADMIN)
