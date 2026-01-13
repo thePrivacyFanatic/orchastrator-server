@@ -21,11 +21,14 @@ class Privlage(IntEnum):
     :vartype PUBLISHER: Literal[2]
     :var SILENCED: the permission to recive messages and transactions published
     :vartype SILENCED: Literal[3]
+    :var ISOLATED: temporary permission level of users that overreach their
+    :vartype ISOLATED: Literal[4]
     """
     ADMIN = 0
     MODERATOR = 1
     PUBLISHER = 2
     SILENCED = 3
+    ISOLATED = 4
 
 
 class MessageType(IntEnum):
@@ -58,7 +61,7 @@ class User:
     :var privlage: user's privlage level, see the enums docstring for more info
     :vartype privlage: Privlage
     """
-    uid: Optional[int]
+    uid: int
     name: str
     privlage:Privlage
 
@@ -100,6 +103,7 @@ class Login:
     gid: int
     username: str
     password: str
+    last_sid: int
 
 
 systemUser = User(0, "System", Privlage.ADMIN)
