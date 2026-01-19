@@ -37,14 +37,14 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
         await ws.close(websockets.CloseCode.POLICY_VIOLATION)
         return
     connected.add(ws)
-    await ws.send(map(json.dumps, man.sync(login.last_sid)))
+    await ws.send(map(lambda s: s.asjson(), man.sync(login.last_sid)))
     while True:
         try:
             message = Signal(None, None, *json.loads(await ws.recv()).values())
             match message.mtype:
                 case  MessageType.INTERNAL:
                     man.save(message)
-                    broadcast(connected, json.dumps(Signal))
+                    broadcast(connected, message.asjson())
                 case MessageType.EXTERNAL:
                     ...
                 case MessageType.EXECUTIVE:
@@ -55,7 +55,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
             await ws.close()
             broadcast(
                 connected,
-                json.dumps(ban.args[0]))
+                ban.args[0].asjson())
             return
 
 

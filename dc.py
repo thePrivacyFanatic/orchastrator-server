@@ -1,8 +1,9 @@
 """
 The file containing the data classes and enums for the data used by the server to handle data
 """
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from enum import IntEnum
+import json
 from typing import Optional
 
 
@@ -79,7 +80,7 @@ class Signal:
     :vartype sender: int
     :var content: content of the message formatted json, encrypted in internal messages
     :vartype content: str
-    :var mtype: type of message, external messages require special serverside handeling
+    :var mtype: type of message, external and executive messages require serverside handeling
     :vartype mtype: MessageType
     """
     sid: Optional[int]
@@ -87,6 +88,16 @@ class Signal:
     sender: int
     content: str
     mtype: MessageType
+
+    def asjson(self) -> str:
+        """
+        convert signal to json
+        
+        :param self: the signal being converted
+        :return: json string of signal
+        :rtype: str
+        """
+        return json.dumps(asdict(self))
 
 @dataclass
 class Login:

@@ -20,7 +20,7 @@ class BanStop(Exception):
 
 class DBAccess():
     """
-    Docstring for DBAccess
+    an access manager handeling authentication when constructed and authorization for all commands
     """
     def __init__(self, login: Login, hasher: PasswordHasher = PasswordHasher()) -> None:
         path = f"db/{login.gid}.db"
@@ -61,7 +61,9 @@ class DBAccess():
         """
         with self.db:
             self.db.execute("UPDATE users SET privlage = 4 WHERE uid=?;", (self.user.uid,))
-            sig = self.save(Signal(None, None, 0, f"""{{"type" : "perm", "uid" : {self.user.uid}, "new", 5}}""", MessageType.EXTERNAL))
+            sig = self.save(
+                Signal(None, None, 0, f"""{{"type" : "perm", "uid" : {self.user.uid}, "new", 5}}""",
+                        MessageType.EXTERNAL))
             self.db.commit()
         raise BanStop(sig)
 
