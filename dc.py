@@ -76,8 +76,8 @@ class Signal:
     :vartype sender: NotRequired[int]
     :var timestamp: unix timestamp of the message, originally assigned by the db
     :vartype sender: NotRequired[int]
-    :var sender: uid of the sender
-    :vartype sender: int
+    :var uid: uid of the sender
+    :vartype uid: int
     :var content: content of the message formatted json, encrypted in internal messages
     :vartype content: str
     :var mtype: type of message, external and executive messages require serverside handeling
@@ -85,7 +85,7 @@ class Signal:
     """
     sid: Optional[int]
     timestamp: Optional[int]
-    sender: int
+    uid: Optional[int]
     content: str
     mtype: MessageType
 

@@ -26,7 +26,7 @@ def main() -> None:
                 db.executescript("""
                     CREATE TABLE users (uid INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, hash TEXT, salt TEXT, privlage INTEGER);
                     CREATE TABLE signals (sid INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, sender INTEGER, contents TEXT, type INTEGER);
-                    CREATE TABLE objectives (oid INTEGER PRIMARY KEY AUTOINCREMENT, packagename TEXT, implementation BLOB)
+                    CREATE TABLE objectives (oid INTEGER PRIMARY KEY AUTOINCREMENT, displayName TEXT, implementation BLOB)
                                  """
                     )
 

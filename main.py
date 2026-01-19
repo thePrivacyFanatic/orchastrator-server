@@ -10,7 +10,7 @@ import websockets
 from websockets.asyncio.server import serve, broadcast
 from argon2 import PasswordHasher
 
-from dc import Login, MessageType, Privlage, Signal
+from dc import Login, MessageType, Signal
 from dbaccess import DBAccess, LoginFail, BanStop
 
 
@@ -40,7 +40,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
     await ws.send(map(lambda s: s.asjson(), man.sync(login.last_sid)))
     while True:
         try:
-            message = Signal(None, None, *json.loads(await ws.recv()).values())
+            message = Signal(None, None, man.user.uid, *json.loads(await ws.recv()).values())
             match message.mtype:
                 case  MessageType.INTERNAL:
                     man.save(message)
@@ -48,9 +48,10 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
                 case MessageType.EXTERNAL:
                     ...
                 case MessageType.EXECUTIVE:
-                    if man.user.privlage > Privlage.ADMIN:
-                        man.isolate()
-                    
+                    ...
+        except ValueError:
+            await ws.close(websockets.CloseCode.INVALID_DATA)
+            return
         except BanStop as ban:
             await ws.close()
             broadcast(
