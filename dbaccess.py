@@ -47,6 +47,8 @@ class DBAccess():
         :return: the signal, now with a non-null id and timestamp
         :rtype: Signal
         """
+        if message.sid or message.timestamp or message.uid:
+            self.isolate()
         with self.db:  # aqcuire lock
             self.db.execute("""INSERT INTO signals (timestamp, sender, contents, privlage)
                         VALUES (unixepoch(), ?, ?, 0)""", (self.user.uid, message.content))
@@ -57,12 +59,14 @@ class DBAccess():
 
     def isolate(self) -> NoReturn:
         """
-        demotes the current user to banned
+        demotes the current user to isolated
+        then throws a BanStop to immediatly halt all connection with said user
+        and allow the server to broadcast an isolation notice
         """
         with self.db:
             self.db.execute("UPDATE users SET privlage = 4 WHERE uid=?;", (self.user.uid,))
             sig = self.save(
-                Signal(None, None, 0, f"""{{"type" : "perm", "uid" : {self.user.uid}, "new", 5}}""",
+                Signal(None, None, None, f"""{{"type" : "isolation"}}""",
                         MessageType.EXTERNAL))
             self.db.commit()
         raise BanStop(sig)
