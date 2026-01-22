@@ -66,7 +66,7 @@ class DBAccess():
         with self.db:
             self.db.execute("UPDATE users SET privlage = 4 WHERE uid=?;", (self.user.uid,))
             sig = self.save(
-                Signal(None, None, None, f"""{{"type" : "isolation"}}""",
+                Signal(None, None, None, '{"type" : "isolation"}',
                         MessageType.EXTERNAL))
             self.db.commit()
         raise BanStop(sig)
