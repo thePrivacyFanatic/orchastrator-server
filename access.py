@@ -1,5 +1,4 @@
 """module containing the dbaccess class which inherits from a sqlite connction"""
-from os import O_ASYNC
 import sqlite3
 from os.path import isfile
 from typing import Iterable, List, NoReturn
@@ -118,8 +117,8 @@ class DBAccess():
         """
         dumps all current user and objective data to two lists in a tuple
         """
-        return (list(map(lambda u: User(*u), self._db.execute("SELECT * FROM users").fetchall())), 
-                list(map(lambda o: Objective(*o), self._db.execute("SELECT * FROM objectives").fetchall())))
+        return (list(map(lambda u: User(*u), self._db.execute("SELECT * FROM users").fetchall())),
+        list(map(lambda o: Objective(*o), self._db.execute("SELECT * FROM objectives").fetchall())))
 
 
 def authenticate(login: Login, hasher: PasswordHasher = PasswordHasher()) -> DBAccess:
@@ -148,4 +147,3 @@ def authenticate(login: Login, hasher: PasswordHasher = PasswordHasher()) -> DBA
     # authenticated user
     user = User(uid=entry.uid, name=login.username, privlage=Privlage(entry.privlage))
     return DBAccess(user, db)
-
