@@ -38,11 +38,13 @@ def main() -> None:
                 phash = PasswordHasher().hash(
                     password=input("type a password or passphrase\n > "),
                     salt=salt.encode())
-                db.executemany("INSERT INTO users (username, hash, salt, privlage) VALUES (?, ?, ?, 0)",
-                           (("System", "", ""), (username, phash, salt)))
+                db.execute("INSERT INTO users (username, hash, salt, privlage) VALUES (?, ?, ?, 0)",
+                           (username, phash, salt))
 
                 print("set up first admin " + username)
-                db.execute("""INSERT INTO signals (timestamp, sender, contents, type) VALUES (unixepoch(), 0, "INITIALLIZED", 0)""")
+                db.execute("""INSERT INTO signals 
+                           (timestamp, sender, contents, type) 
+                           VALUES (unixepoch(), 0, "INITIALLIZED", 0)""")
                 print("marked start")
 
         case "e":

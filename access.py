@@ -1,5 +1,6 @@
 """module containing the dbaccess class which inherits from a sqlite connction"""
 import sqlite3
+from secrets import token_bytes
 from os.path import isfile
 from typing import Iterable, List, NoReturn
 from argon2 import PasswordHasher
@@ -119,6 +120,39 @@ class DBAccess():
         """
         return (list(map(lambda u: User(*u), self._db.execute("SELECT * FROM users").fetchall())),
         list(map(lambda o: Objective(*o), self._db.execute("SELECT * FROM objectives").fetchall())))
+
+    def add_user(self,
+                 username: str,
+                 privlage:Privlage,
+                 password: str,
+                 hasher: PasswordHasher = PasswordHasher()) -> User:
+        """
+        add a user to the database and return it
+
+        :param username: name of the new user
+        :type username: str
+        :param privlage: initial privlage level of the new user
+        :type privlage: Privlage
+        :param password: password of the new user
+        :type password: str
+        :param hasher: optional custom hash settings for the password
+        :type hasher: PasswordHasher
+        :return: a user object of the new user
+        :rtype: User
+        """
+        if privlage < self.user.privlage:
+            self.isolate()
+        salt = token_bytes(16)
+        phash = hasher.hash(password=password, salt=salt)
+        with self._db:
+            self._db.execute("""INSERT INTO users 
+                             (username, hash, salt, privlage)
+                              VALUES (?, ?, ?, ?)""", 
+                             (username, phash, salt, privlage))
+            user = User(*(self._db.execute("""SELECT FROM users 
+                                           (uid, username, privlage) 
+                                           ORDER BY uid DESC LIMIT 1""").fetchone()))
+        return user
 
 
 def authenticate(login: Login, hasher: PasswordHasher = PasswordHasher()) -> DBAccess:

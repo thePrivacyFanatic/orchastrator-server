@@ -57,7 +57,7 @@ class User:
     inherits from TypedDict for seriallizabillity
 
     :var uid: user ID, assigned by the db and autoincremented as the addition order is public
-    :vartype uid: NotRequired[int]
+    :vartype uid: int
     :var name: username
     :vartype name: str
     :var privlage: user's privlage level, see the enums docstring for more info
@@ -74,11 +74,11 @@ class Signal:
     a message or signal published by a user with adaquate permissions
 
     :var sid: signal ID, assigned by the db and autoincremented
-    :vartype sender: NotRequired[int]
+    :vartype sid: Optional[int]
     :var timestamp: unix timestamp of the message, originally assigned by the db
-    :vartype sender: NotRequired[int]
+    :vartype timestamp: Optional[int]
     :var uid: uid of the sender
-    :vartype uid: int
+    :vartype uid: Optional[int]
     :var content: content of the message formatted json, encrypted in internal messages
     :vartype content: str
     :var mtype: type of message, external and executive messages require serverside handeling
