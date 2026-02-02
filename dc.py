@@ -4,6 +4,7 @@ The file containing the data classes and enums for the data used by the server t
 from dataclasses import asdict, dataclass
 from enum import IntEnum
 import json
+from sqlite3 import Blob
 from typing import Optional
 
 
@@ -117,4 +118,18 @@ class Login:
     last_sid: int
 
 
-systemUser = User(0, "System", Privlage.ADMIN)
+@dataclass
+class Objective:
+    """
+    an objective widget that can send and receive data when on the client
+
+    :var oid: id of the objective
+    :vartype oid: int
+    :var name: name for admin access, client has its own handling
+    :vartype name: int
+    :var implementation: dart bytecode file of objective widget
+    :vartype implementation: Blob
+    """
+    oid: int
+    name: int
+    implementation: Blob

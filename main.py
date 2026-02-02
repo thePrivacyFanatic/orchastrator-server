@@ -11,7 +11,7 @@ from websockets.asyncio.server import serve, broadcast
 from argon2 import PasswordHasher
 
 from dc import Login, MessageType, Signal
-from dbaccess import DBAccess, LoginFail, BanStop
+from access import LoginFail, BanStop, authenticate
 
 
 connected: set[websockets.ServerConnection] = set()
@@ -28,7 +28,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
     """
     try:
         login = Login(*json.loads(await ws.recv()).values())  # validate data
-        man = DBAccess(login)  # authentication
+        man = authenticate(login)  # authentication
     except TypeError:
         await ws.close(websockets.CloseCode.PROTOCOL_ERROR)
         return
