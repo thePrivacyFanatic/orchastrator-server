@@ -4,7 +4,7 @@ has no error handeling as it (unlike instance_config.py) is not intended for pro
 """
 import sqlite3
 import access
-from dc import Privlage, User
+from dc import MessageType, Objective, Privlage, Signal, User
 
 
 def start() -> access.DBAccess:
@@ -55,9 +55,20 @@ def mainloop(acc: access.DBAccess) -> None:
                 user = acc.add_user(username, privlage, password)
                 print(f"added user {user}")
             case "5":
-                ...
+                contents = input("what is the signal's content (note it is encrypted serverside if internal)")
+                mtype = MessageType(int(input("""what is the type of the message?
+                                              2: internal
+                                              1: external
+                                              0: executive""")))
+                signal = acc.save_signal(Signal(content=contents, mtype=mtype))
+                print(f"saved signal {signal}")
             case "6":
-                ...
+                name = input("enter the display name for the objective")
+                path = input("enter the file path for the implementation file")
+                with open(path, "rb") as file:
+                    implementation = file.read()
+                obj = Objective(None, name, implementation)
+                print(f"added objective {obj}")
 
 
 if __name__ == "__main__":

@@ -23,12 +23,9 @@ def main() -> None:
 
             with sqlite3.connect(path) as db:
 
-                db.executescript("""
-                    CREATE TABLE users (uid INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, hash TEXT, salt TEXT, privlage INTEGER);
-                    CREATE TABLE signals (sid INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, sender INTEGER, contents TEXT, type INTEGER);
-                    CREATE TABLE objectives (oid INTEGER PRIMARY KEY AUTOINCREMENT, displayName TEXT, implementation BLOB)
-                                 """
-                    )
+                db.executescript("""CREATE TABLE users (uid INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, privlage INTEGER, hash TEXT, salt TEXT);
+                    CREATE TABLE signals (sid INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, sender INTEGER, contents TEXT, type INTEGER);
+                    CREATE TABLE objectives (oid INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, implementation BLOB)""")
 
                 print("created tables, setting up users")
 
@@ -43,8 +40,8 @@ def main() -> None:
 
                 print("set up first admin " + username)
                 db.execute("""INSERT INTO signals 
-                           (timestamp, sender, contents, type) 
-                           VALUES (unixepoch(), 0, "INITIALLIZED", 0)""")
+                           (sender, contents, type) 
+                           VALUES (0, "INITIALLIZED", 0)""")
                 print("marked start")
 
         case "e":

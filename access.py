@@ -2,7 +2,7 @@
 import sqlite3
 from secrets import token_bytes
 from os.path import isfile
-from typing import Iterable, List, NoReturn
+from typing import Any, Iterable, List, NoReturn
 from argon2 import PasswordHasher
 from dc import MessageType, Objective, Privlage, User, Signal, Login
 
@@ -27,9 +27,25 @@ class DBAccess():
         self.user = user
         self._db = db
 
-    def save(self, message: Signal) -> Signal:
+    def _save(self, table_name: str, values: dict[str, Any]) -> tuple:
         """
-        save a message in the db and return it with its assigned id and timesstamp
+        a function for adding rows to the database asyncronously and returning the added row
+
+        :param table_name: name of the table to save into
+        :type table_name: str
+        :param values: dictionary of the column and the value to save in it, id and timestamp are managed by the db
+        :type values: dict[str, Any]
+        :return: tuple of the added row
+        :rtype: tuple[Any, ...]
+        """
+        with self._db:
+            self._db.execute("INSERT INTO {} {} VALUES ?".format(table_name, values.keys()), (values.values(),))
+            return self._db.execute("SELECT * FROM {} DESC LIMIT 1".format(table_name)).fetchone()
+
+    def save_signal(self, message: Signal) -> Signal:
+        """
+        add a message to the db and return it with an id and a timesstamp
+        handels access control as well
         
         :param message: the signal recived
         :type message: Signal
@@ -38,13 +54,41 @@ class DBAccess():
         """
         if message.sid or message.timestamp or message.uid:
             self.isolate()
-        with self._db:  # aqcuire lock
-            self._db.execute("""INSERT INTO signals (timestamp, sender, contents, privlage)
-                        VALUES (unixepoch(), ?, ?, 0)""", (self.user.uid, message.content))
-            self._db.commit()
-            sig = Signal(*self._db.execute("""SELECT (sid, timestamp, sender, contents, type)
-                           FROM signals ORDER BY sid DESC LIMIT 1""").fetchone())
-        return sig
+        return Signal(*self._save("signals", {"sender": self.user.uid, "contents": message.content, "type": int(message.mtype)}))
+
+    def add_user(self,
+                 username: str,
+                 privlage:Privlage,
+                 password: str,
+                 hasher: PasswordHasher = PasswordHasher()) -> User:
+        """
+        add a user to the db and return it with a uid
+
+        :param username: name of the new user
+        :type username: str
+        :param privlage: initial privlage level of the new user
+        :type privlage: Privlage
+        :param password: password of the new user
+        :type password: str
+        :param hasher: optional custom hash settings for the password
+        :type hasher: PasswordHasher
+        :return: a user object of the new user
+        :rtype: User
+        """
+        if privlage < self.user.privlage:
+            self.isolate()
+        salt = token_bytes(16)
+        phash = hasher.hash(password=password, salt=salt)
+        return User(*self._save("users", {"username": username, "hash": phash, "salt": salt, "privlage": int(privlage)})[:2])
+
+    def add_objective(self, obj: Objective) -> Objective:
+        """
+        add an objective to the db and return it with an oid
+
+        :param obj: the objective to add
+        :type obj: Objective
+        """
+        return Objective(*self._save("objectives", {"name": obj.name, "implementation": obj.implementation}))
 
     def isolate(self) -> NoReturn:
         """
@@ -54,7 +98,7 @@ class DBAccess():
         """
         with self._db:
             self._db.execute("UPDATE users SET privlage = 4 WHERE uid=?;", (self.user.uid,))
-            sig = self.save(
+            sig = self.save_signal(
                 Signal(None, None, None, '{"type" : "isolation"}',
                         MessageType.EXTERNAL))
             self._db.commit()
@@ -74,7 +118,7 @@ class DBAccess():
         """
         with self._db:
             self._db.execute("UPDATE users SET privlage = ? WHERE uid=?;", (privlage, uid))
-        return self.save(Signal(None,
+        return self.save_signal(Signal(None,
                                 None,
                                 self.user.uid,
                                 f"""{{"type" : "perm", "uid" : {uid}}}""",
@@ -121,38 +165,7 @@ class DBAccess():
         return (list(map(lambda u: User(*u), self._db.execute("SELECT * FROM users").fetchall())),
         list(map(lambda o: Objective(*o), self._db.execute("SELECT * FROM objectives").fetchall())))
 
-    def add_user(self,
-                 username: str,
-                 privlage:Privlage,
-                 password: str,
-                 hasher: PasswordHasher = PasswordHasher()) -> User:
-        """
-        add a user to the database and return it
 
-        :param username: name of the new user
-        :type username: str
-        :param privlage: initial privlage level of the new user
-        :type privlage: Privlage
-        :param password: password of the new user
-        :type password: str
-        :param hasher: optional custom hash settings for the password
-        :type hasher: PasswordHasher
-        :return: a user object of the new user
-        :rtype: User
-        """
-        if privlage < self.user.privlage:
-            self.isolate()
-        salt = token_bytes(16)
-        phash = hasher.hash(password=password, salt=salt)
-        with self._db:
-            self._db.execute("""INSERT INTO users 
-                             (username, hash, salt, privlage)
-                              VALUES (?, ?, ?, ?)""", 
-                             (username, phash, salt, privlage))
-            user = User(*(self._db.execute("""SELECT FROM users 
-                                           (uid, username, privlage) 
-                                           ORDER BY uid DESC LIMIT 1""").fetchone()))
-        return user
 
 
 def authenticate(login: Login, hasher: PasswordHasher = PasswordHasher()) -> DBAccess:

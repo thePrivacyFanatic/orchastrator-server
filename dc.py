@@ -4,7 +4,6 @@ The file containing the data classes and enums for the data used by the server t
 from dataclasses import asdict, dataclass
 from enum import IntEnum
 import json
-from sqlite3 import Blob
 from typing import Optional
 
 
@@ -84,11 +83,11 @@ class Signal:
     :var mtype: type of message, external and executive messages require serverside handeling
     :vartype mtype: MessageType
     """
-    sid: Optional[int]
-    timestamp: Optional[int]
-    uid: Optional[int]
-    content: str
-    mtype: MessageType
+    sid: Optional[int] = None
+    timestamp: Optional[int] = None
+    uid: Optional[int] = None
+    content: str = ""
+    mtype: MessageType = MessageType.INTERNAL
 
     def asjson(self) -> str:
         """
@@ -130,6 +129,6 @@ class Objective:
     :var implementation: dart bytecode file of objective widget
     :vartype implementation: Blob
     """
-    oid: int
-    name: int
-    implementation: Blob
+    oid: Optional[int]
+    name: str
+    implementation: bytes

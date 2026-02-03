@@ -43,7 +43,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
             message = Signal(None, None, man.user.uid, *json.loads(await ws.recv()).values())
             match message.mtype:
                 case  MessageType.INTERNAL:
-                    man.save(message)
+                    man.save_signal(message)
                     broadcast(connected, message.asjson())
                 case MessageType.EXTERNAL:
                     ...
