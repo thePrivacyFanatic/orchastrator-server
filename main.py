@@ -2,10 +2,8 @@
 main module for the orchastrator server
 
 """
-from dataclasses import asdict
 from random import random
 import asyncio
-import json
 from time import sleep
 from pydantic import ValidationError
 import websockets
@@ -28,25 +26,29 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
     :param websocket: Description
     :type websocket: websockets.ServerConnection
     """
+    version = await ws.recv()
+    if version != "1":
+        await ws.close(websockets.CloseCode.PROTOCOL_ERROR)
+        return
     try:
-        login = Login(**json.loads(await ws.recv()))  # validate data
+        login = Login.model_validate_json(await ws.recv())  # validate data
         man = authenticate(login)  # authentication
     except TypeError, ValidationError:
         await ws.close(websockets.CloseCode.PROTOCOL_ERROR)
         return
     except LoginFail:
-        sleep(4 * random())  # makes a timing attack near impossible
+        sleep(4 * random())  # makes a login timing attack near impossible
         await ws.close(websockets.CloseCode.POLICY_VIOLATION)
         return
     connected.add(ws)
-    await ws.send(map(lambda s: json.dumps(asdict(s)), man.sync(login.last_sid)))
+    await ws.send(map(lambda s: s.model_dump_json(), man.sync(login.last_sid)))
     while True:
         try:
-            message = Signal(None, None, None, **json.loads(await ws.recv()))
+            message = Signal.model_validate_json(await ws.recv())
             match message.mtype:
                 case  MessageType.INTERNAL:
                     man.save_signal(message)
-                    broadcast(connected, json.dumps(asdict(message)))
+                    broadcast(connected, message.model_dump_json())
                 case MessageType.EXTERNAL:
                     ...
         except ValueError, ValidationError:
@@ -56,7 +58,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
             await ws.close()
             broadcast(
                 connected,
-                ban.args[0].asjson())
+                ban.signal.model_dump_json())
             return
 
 

@@ -2,9 +2,9 @@
 import sqlite3
 from secrets import token_bytes
 from os.path import isfile
-from typing import Any, List, NoReturn
+from typing import Any, NoReturn
 from argon2 import PasswordHasher
-from dc import MessageType, Objective, Privlage, User, Signal, Login
+from dc import Introduction, MessageType, Objective, Privlage, User, Signal, Login
 
 
 class LoginFail(Exception):
@@ -15,14 +15,28 @@ class LoginFail(Exception):
 
 class BanStop(Exception):
     """
-    an exception thrown after banning the user for not respecting privlages
+    an exception thrown after isolating a user to broadcast the ban
+
+    :var signal: signal advertizing the ban
+    :vartype signal: Signal
     """
+    signal: Signal
+    def __init__(self, signal:Signal, *args: object) -> None:
+        super().__init__(*args)
+        self.signal = signal
 
 
 class DBAccess():
     """
     an access manager handeling authentication when constructed and authorization for all commands
+
+    :var user: user object of connected user
+    :vartype user: User
+    :var db: database connection to use
+    :vartype db: Connection
     """
+    user: User
+    db: sqlite3.Connection
     def __init__(self, user: User, db: sqlite3.Connection) -> None:
         self.user = user
         self._db = db
@@ -59,7 +73,7 @@ class DBAccess():
         """
         if message.sid or message.timestamp or message.uid:
             self.isolate()
-        return Signal(*self._save("signals",
+        return Signal.from_tuple(self._save("signals",
                                   {"sender": self.user.uid,
                                    "contents": message.content,
                                    "type": int(message.mtype)}))
@@ -87,11 +101,11 @@ class DBAccess():
             self.isolate()
         salt = token_bytes(16)
         phash = hasher.hash(password=password, salt=salt)
-        return User(*self._save("users",
+        return User.from_tuple(self._save("users",
                                 {"username": username,
+                                 "privlage": int(privlage),
                                  "hash": phash,
-                                 "salt": str(salt),
-                                 "privlage": int(privlage)})[:3])
+                                 "salt": salt})[:3])
 
     def add_objective(self, obj: Objective) -> Objective:
         """
@@ -102,7 +116,7 @@ class DBAccess():
         """
         if self.user.privlage > Privlage.ADMIN:
             self.isolate()
-        return Objective(*self._save("objectives",
+        return Objective.from_tuple(self._save("objectives",
                                      {"name": obj.name,
                                       "implementation": obj.implementation}))
 
@@ -112,12 +126,7 @@ class DBAccess():
         then throws a BanStop to immediatly halt all connection with said user
         and allow the server to broadcast an isolation notice
         """
-        with self._db:
-            self._db.execute("UPDATE users SET privlage = 4 WHERE uid=?;", (self.user.uid,))
-            sig = self.save_signal(
-                Signal(None, None, None, '{"type" : "isolation"}',
-                        MessageType.EXTERNAL))
-            self._db.commit()
+        sig = self._modify_perms(self.user.uid, Privlage(4))
         raise BanStop(sig)
 
     def _modify_perms(self, uid: int, privlage: Privlage) -> Signal:
@@ -134,13 +143,11 @@ class DBAccess():
         """
         with self._db:
             self._db.execute("UPDATE users SET privlage = ? WHERE uid=?;", (privlage, uid))
-        return self.save_signal(Signal(None,
-                                None,
-                                self.user.uid,
-                                f"""{{"type" : "perm", "uid" : {uid}}}""",
-                                MessageType.EXTERNAL))
+        return self.save_signal(Signal(uid=self.user.uid,
+                                content=f'{{"type" : "perm", "uid" : {uid}}}',
+                                mtype=MessageType.EXTERNAL))
 
-    def promote(self, uid: int, privlage: Privlage) -> Signal:
+    def set_permission(self, uid: int, privlage: Privlage) -> Signal:
         """
         function that allowes increasing permissions of a user
         bans users with insufficient permissions (less than mod or mod promoting above publisher)
@@ -152,35 +159,41 @@ class DBAccess():
         :return: signal to notify users of the promotion
         :rtype: Signal
         """
+        og_priv = self._db.execute("SELECT privlage FROM users WHERE uid=?", (uid,)).fetchone()
         if (self.user.privlage > Privlage.MODERATOR
+            # insufficient permission
             or
         (self.user.privlage == Privlage.MODERATOR and privlage < Privlage.PUBLISHER)
+        # mod privlage escelation
         or
-        privlage > self._db.execute("SELECT privlage FROM users WHERE uid=?", (uid,)).fetchone()):
+        self.user.privlage > og_priv):
+            # userping attempt
             self.isolate()
         else:
             return self._modify_perms(uid, privlage)
 
 
-    def sync(self, last_sid: int) -> List[Signal]:
+    def sync(self, last_sid: int) -> tuple[Signal, ...]:
         """
         returns all signals sent after a specified one
         
         :param last_sid: sid of the last signal recived
         :type last_sid: int
-        :return: map of all signals with a higher sid
-        :rtype: map
+        :return: tuple of all signals with a higher sid
+        :rtype: tuple
         """
-        return list(map(lambda s :Signal(*s),
+        return tuple(map(lambda s :Signal(*s),
                    self._db.execute("SELECT * FROM signals WHERE sid>?", (last_sid,)).fetchall()))
 
-    def introduce(self) -> tuple[List[User], list[Objective]]:
+    def introduce(self) -> Introduction:
         """
         dumps all current user and objective data to two lists in a tuple
         """
-        return (list(map(lambda u: User(*u[:3]),
-                         self._db.execute("SELECT * FROM users").fetchall())),
-        list(map(lambda o: Objective(*o), self._db.execute("SELECT * FROM objectives").fetchall())))
+        return Introduction(
+            users = tuple(map(lambda u: User.from_tuple(u[:3]),
+                              self._db.execute("SELECT * FROM users").fetchall())),
+            objectives=tuple(map(Objective.from_tuple,
+                                 self._db.execute("SELECT * FROM objectives").fetchall())))
 
 
 
@@ -206,7 +219,7 @@ def authenticate(login: Login, hasher: PasswordHasher = PasswordHasher()) -> DBA
       (login.username,)).fetchone()):
         raise LoginFail
     # validating user existence
-    if hasher.hash(login.password, salt=entry.salt.encode()) != entry.hash:
+    if hasher.hash(login.password, salt=entry[3]) != entry.hash:
         raise LoginFail
     # authenticated user
     user = User(uid=entry.uid, name=login.username, privlage=Privlage(entry.privlage))

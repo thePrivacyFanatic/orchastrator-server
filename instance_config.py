@@ -33,7 +33,8 @@ def main() -> None:
                                  (sid INTEGER PRIMARY KEY AUTOINCREMENT,
                                   Timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                   sender INTEGER,
-                                  contents TEXT, type INTEGER);
+                                  contents TEXT,
+                                  type INTEGER);
                     CREATE TABLE objectives 
                                  (oid INTEGER PRIMARY KEY AUTOINCREMENT,
                                   name TEXT,

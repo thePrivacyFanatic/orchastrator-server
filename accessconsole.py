@@ -5,8 +5,9 @@ has almost no error handeling as it (unlike instance_config.py) is not intended 
 from dataclasses import astuple, fields
 import sqlite3
 from typing import Iterable, Sequence
+from pydantic import BaseModel
 import access
-from dc import DataClass, MessageType, Objective, Privlage, Signal, User
+from dc import MessageType, Objective, Privlage, Signal, User
 from main import BanStop
 
 
@@ -21,7 +22,11 @@ def start() -> access.DBAccess:
     username = input("enter the name of the user you'll be acting as: ")
     uid = int(input("enter the uid of the user: "))
     privlage = int(input("enter privlage value from 0 to 4 where 0 is admin and 4 is isolated: "))
-    return access.DBAccess(User(uid, username, Privlage(privlage)), sqlite3.connect(f"db/{gid}.db"))
+    return access.DBAccess(
+        User(uid=uid,
+             name=username,
+             privlage=Privlage(privlage)),
+             sqlite3.connect(f"db/{gid}.db"))
 
 
 def mainloop(acc: access.DBAccess) -> None:
@@ -45,12 +50,12 @@ def mainloop(acc: access.DBAccess) -> None:
                 case "0":
                     break
                 case "1":
-                    _dump_data_class_list(acc.introduce()[0], (3, 16, 23))
+                    _dump_data_class_list(acc.introduce().users, (3, 16, 23))
                 case "2":
                     _dump_data_class_list(list(acc.sync(int(input("which sid to sync from?: ")))),
                                           (4, 19, 3, 16, 5))
                 case "3":
-                    _dump_data_class_list(acc.introduce()[1], (3, 16, 0))
+                    _dump_data_class_list(acc.introduce().objectives, (3, 16, 0))
                 case "4":
                     username = input("enter the username for the user: ")
                     privlage = Privlage(int(input("""enter privlage level of the user
@@ -76,13 +81,14 @@ def mainloop(acc: access.DBAccess) -> None:
                     path = input("enter the file path for the implementation file: ")
                     with open(path, "r", encoding='UTF-8') as file:
                         implementation = file.read()
-                    obj = acc.add_objective(Objective(None, name, implementation))
+                    obj = acc.add_objective(
+                        Objective(oid=None, name=name, implementation=implementation))
                     print(f"added the objective with id {obj.oid} and name {obj.name}")
     except BanStop:
         print("you have been banned")
 
 
-def _dump_data_class_list(objects: Sequence[DataClass], paddings: tuple[int, ...]) -> None:
+def _dump_data_class_list(objects: Sequence[BaseModel], paddings: tuple[int, ...]) -> None:
     """
     prints a sequence of dataclass objects as a table
 

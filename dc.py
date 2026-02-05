@@ -3,8 +3,21 @@ The file containing the data classes and enums for the data used by the server t
 """
 from enum import IntEnum
 from sqlite3.dbapi2 import Timestamp
-from typing import ClassVar, Optional, Protocol, TypeVar
-from pydantic.dataclasses import dataclass
+from typing import Optional, Self
+from pydantic import BaseModel
+
+
+class _entryModel(BaseModel):
+    @classmethod
+    def from_tuple(cls, tpl:tuple) -> Self:
+        """
+        instantiates the model from a tuple like in a dataclass
+
+        :param tpl: tuple of values to add must be the same as in the call decleration
+        :return: the model
+        :rtype: Self
+        """
+        return cls(**dict(zip(cls.model_fields.keys(), tpl)))
 
 
 
@@ -46,8 +59,7 @@ class MessageType(IntEnum):
     EXTERNAL = 1
 
 
-@dataclass
-class User:
+class User(_entryModel):
     """
     class holding data relating to a user
 
@@ -62,12 +74,8 @@ class User:
     name: str
     privlage:Privlage
 
-    def __post_init__(self) -> None:
-        self.privlage = Privlage(self.privlage)
 
-
-@dataclass
-class Signal:
+class Signal(_entryModel):
     """
     a message or signal published by a user with adaquate permissions
 
@@ -88,11 +96,24 @@ class Signal:
     content: str = ""
     mtype: MessageType = MessageType.INTERNAL
 
-    def __post_init__(self) -> None:
-        self.mtype = MessageType(self.mtype)
 
-@dataclass
-class Login:
+class Objective(_entryModel):
+    """
+    an objective widget that can send and receive data when on the client
+
+    :var oid: id of the objective
+    :vartype oid: int
+    :var name: name for admin access, client has its own handling
+    :vartype name: int
+    :var implementation: dart bytecode file of objective widget
+    :vartype implementation: Blob
+    """
+    oid: Optional[int]
+    name: str
+    implementation: str
+
+
+class Login(_entryModel):
     """
     the initial data object sent by the client when connecting
 
@@ -109,26 +130,14 @@ class Login:
     last_sid: int
 
 
-@dataclass
-class Objective:
+
+class Introduction(BaseModel):
     """
-    an objective widget that can send and receive data when on the client
+    model used for sending the initial group state
+    only uses a model for ease of seriallization
 
-    :var oid: id of the objective
-    :vartype oid: int
-    :var name: name for admin access, client has its own handling
-    :vartype name: int
-    :var implementation: dart bytecode file of objective widget
-    :vartype implementation: Blob
+    :var users: users currently in the group
+    :var objectives: objectives currently used in the group
     """
-    oid: Optional[int]
-    name: str
-    implementation: str
-
-
-class _DataClassProtocol(Protocol):
-    __dataclass_fields__: ClassVar[dict]
-
-
-
-DataClass = TypeVar("DataClass", bound=_DataClassProtocol)
+    users: tuple[User, ...]
+    objectives: tuple[Objective, ...]
