@@ -1,10 +1,10 @@
 """
 The file containing the data classes and enums for the data used by the server to handle data
 """
-from dataclasses import asdict, dataclass
 from enum import IntEnum
-import json
-from typing import Optional
+from sqlite3.dbapi2 import Timestamp
+from typing import ClassVar, Optional, Protocol, TypeVar
+from pydantic.dataclasses import dataclass
 
 
 
@@ -37,23 +37,19 @@ class MessageType(IntEnum):
     type of a message
     external messages can only be sent by users with privlages moderator and up
 
-    :var EXECUTIVE: message concerning group configuration, unencrypted, modifies objectives table
-    :vartype EXECUTIVE: Literal[0]
-    :var EXTERNAL: message concerning user permissions, unecrypted, modifies the users table
-    :vartype EXTERNAL: Literal[1]
     :var INTERNAL: message concerning an automation, encrypted between users
-    :vartype INTERNAL: Literal[2]
+    :vartype INTERNAL: Literal[0]
+    :var EXTERNAL: message concerning user permissions, unecrypted, requires high permissions
+    :vartype EXTERNAL: Literal[1]
     """
-    INTERNAL = 2
+    INTERNAL = 0
     EXTERNAL = 1
-    EXECUTIVE = 0
 
 
 @dataclass
 class User:
     """
     class holding data relating to a user
-    inherits from TypedDict for seriallizabillity
 
     :var uid: user ID, assigned by the db and autoincremented as the addition order is public
     :vartype uid: int
@@ -65,6 +61,9 @@ class User:
     uid: int
     name: str
     privlage:Privlage
+
+    def __post_init__(self) -> None:
+        self.privlage = Privlage(self.privlage)
 
 
 @dataclass
@@ -84,20 +83,13 @@ class Signal:
     :vartype mtype: MessageType
     """
     sid: Optional[int] = None
-    timestamp: Optional[int] = None
+    timestamp: Optional[Timestamp] = None
     uid: Optional[int] = None
     content: str = ""
     mtype: MessageType = MessageType.INTERNAL
 
-    def asjson(self) -> str:
-        """
-        convert signal to json
-        
-        :param self: the signal being converted
-        :return: json string of signal
-        :rtype: str
-        """
-        return json.dumps(asdict(self))
+    def __post_init__(self) -> None:
+        self.mtype = MessageType(self.mtype)
 
 @dataclass
 class Login:
@@ -131,4 +123,12 @@ class Objective:
     """
     oid: Optional[int]
     name: str
-    implementation: bytes
+    implementation: str
+
+
+class _DataClassProtocol(Protocol):
+    __dataclass_fields__: ClassVar[dict]
+
+
+
+DataClass = TypeVar("DataClass", bound=_DataClassProtocol)

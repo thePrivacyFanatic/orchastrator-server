@@ -2,10 +2,12 @@
 main module for the orchastrator server
 
 """
+from dataclasses import asdict
 from random import random
 import asyncio
 import json
 from time import sleep
+from pydantic import ValidationError
 import websockets
 from websockets.asyncio.server import serve, broadcast
 from argon2 import PasswordHasher
@@ -27,9 +29,9 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
     :type websocket: websockets.ServerConnection
     """
     try:
-        login = Login(*json.loads(await ws.recv()).values())  # validate data
+        login = Login(**json.loads(await ws.recv()))  # validate data
         man = authenticate(login)  # authentication
-    except TypeError:
+    except TypeError, ValidationError:
         await ws.close(websockets.CloseCode.PROTOCOL_ERROR)
         return
     except LoginFail:
@@ -37,19 +39,17 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
         await ws.close(websockets.CloseCode.POLICY_VIOLATION)
         return
     connected.add(ws)
-    await ws.send(map(lambda s: s.asjson(), man.sync(login.last_sid)))
+    await ws.send(map(lambda s: json.dumps(asdict(s)), man.sync(login.last_sid)))
     while True:
         try:
-            message = Signal(None, None, man.user.uid, *json.loads(await ws.recv()).values())
+            message = Signal(None, None, None, **json.loads(await ws.recv()))
             match message.mtype:
                 case  MessageType.INTERNAL:
                     man.save_signal(message)
-                    broadcast(connected, message.asjson())
+                    broadcast(connected, json.dumps(asdict(message)))
                 case MessageType.EXTERNAL:
                     ...
-                case MessageType.EXECUTIVE:
-                    ...
-        except ValueError:
+        except ValueError, ValidationError:
             await ws.close(websockets.CloseCode.INVALID_DATA)
             return
         except BanStop as ban:

@@ -2,7 +2,7 @@
 import sqlite3
 from secrets import token_bytes
 from os.path import isfile
-from typing import Any, Iterable, List, NoReturn
+from typing import Any, List, NoReturn
 from argon2 import PasswordHasher
 from dc import MessageType, Objective, Privlage, User, Signal, Login
 
@@ -33,14 +33,19 @@ class DBAccess():
 
         :param table_name: name of the table to save into
         :type table_name: str
-        :param values: dictionary of the column and the value to save in it, id and timestamp are managed by the db
+        :param values: dictionary of the columns and the values to save in it, 
+        id and timestamp are managed by the db
         :type values: dict[str, Any]
         :return: tuple of the added row
         :rtype: tuple[Any, ...]
         """
         with self._db:
-            self._db.execute("INSERT INTO {} {} VALUES ?".format(table_name, values.keys()), (values.values(),))
-            return self._db.execute("SELECT * FROM {} DESC LIMIT 1".format(table_name)).fetchone()
+            self._db.execute("INSERT INTO " + table_name +
+                             str(tuple(values.keys())) +
+                             " VALUES " + str(tuple(values.values())))
+            return self._db.execute(f"""SELECT *
+                                    FROM {table_name}
+                                    ORDER BY rowid DESC LIMIT 1""").fetchone()
 
     def save_signal(self, message: Signal) -> Signal:
         """
@@ -54,7 +59,10 @@ class DBAccess():
         """
         if message.sid or message.timestamp or message.uid:
             self.isolate()
-        return Signal(*self._save("signals", {"sender": self.user.uid, "contents": message.content, "type": int(message.mtype)}))
+        return Signal(*self._save("signals",
+                                  {"sender": self.user.uid,
+                                   "contents": message.content,
+                                   "type": int(message.mtype)}))
 
     def add_user(self,
                  username: str,
@@ -75,11 +83,15 @@ class DBAccess():
         :return: a user object of the new user
         :rtype: User
         """
-        if privlage < self.user.privlage:
+        if self.user.privlage > min(privlage, Privlage.MODERATOR):
             self.isolate()
         salt = token_bytes(16)
         phash = hasher.hash(password=password, salt=salt)
-        return User(*self._save("users", {"username": username, "hash": phash, "salt": salt, "privlage": int(privlage)})[:2])
+        return User(*self._save("users",
+                                {"username": username,
+                                 "hash": phash,
+                                 "salt": str(salt),
+                                 "privlage": int(privlage)})[:3])
 
     def add_objective(self, obj: Objective) -> Objective:
         """
@@ -88,7 +100,11 @@ class DBAccess():
         :param obj: the objective to add
         :type obj: Objective
         """
-        return Objective(*self._save("objectives", {"name": obj.name, "implementation": obj.implementation}))
+        if self.user.privlage > Privlage.ADMIN:
+            self.isolate()
+        return Objective(*self._save("objectives",
+                                     {"name": obj.name,
+                                      "implementation": obj.implementation}))
 
     def isolate(self) -> NoReturn:
         """
@@ -146,7 +162,7 @@ class DBAccess():
             return self._modify_perms(uid, privlage)
 
 
-    def sync(self, last_sid: int) -> Iterable[Signal]:
+    def sync(self, last_sid: int) -> List[Signal]:
         """
         returns all signals sent after a specified one
         
@@ -155,14 +171,15 @@ class DBAccess():
         :return: map of all signals with a higher sid
         :rtype: map
         """
-        return map(Signal,
-                   *self._db.execute("SELECT * FROM signals WHERE sid>?", (last_sid,)).fetchall())
+        return list(map(lambda s :Signal(*s),
+                   self._db.execute("SELECT * FROM signals WHERE sid>?", (last_sid,)).fetchall()))
 
     def introduce(self) -> tuple[List[User], list[Objective]]:
         """
         dumps all current user and objective data to two lists in a tuple
         """
-        return (list(map(lambda u: User(*u), self._db.execute("SELECT * FROM users").fetchall())),
+        return (list(map(lambda u: User(*u[:3]),
+                         self._db.execute("SELECT * FROM users").fetchall())),
         list(map(lambda o: Objective(*o), self._db.execute("SELECT * FROM objectives").fetchall())))
 
 

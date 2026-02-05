@@ -1,10 +1,13 @@
 """
 a CLI for accessing the DB
-has no error handeling as it (unlike instance_config.py) is not intended for production use
+has almost no error handeling as it (unlike instance_config.py) is not intended for production use
 """
+from dataclasses import astuple, fields
 import sqlite3
+from typing import Iterable, Sequence
 import access
-from dc import MessageType, Objective, Privlage, Signal, User
+from dc import DataClass, MessageType, Objective, Privlage, Signal, User
+from main import BanStop
 
 
 def start() -> access.DBAccess:
@@ -14,10 +17,10 @@ def start() -> access.DBAccess:
     :return: Description
     :rtype: DBAccess
     """
-    gid = int(input("enter the id of the group you will be accessing"))
-    username = input("enter the name of the user you'll be acting as")
-    uid = int(input("enter the uid of the user"))
-    privlage = int(input("enter privlage value from 0 to 4 where 0 is admin and 4 is isolated"))
+    gid = input("enter the id of the group you will be accessing: ")
+    username = input("enter the name of the user you'll be acting as: ")
+    uid = int(input("enter the uid of the user: "))
+    privlage = int(input("enter privlage value from 0 to 4 where 0 is admin and 4 is isolated: "))
     return access.DBAccess(User(uid, username, Privlage(privlage)), sqlite3.connect(f"db/{gid}.db"))
 
 
@@ -28,48 +31,74 @@ def mainloop(acc: access.DBAccess) -> None:
     :param acc: the DBaccess manager that is utilized when acting on the DB
     :type acc: access.DBAccess
     """
-    while True:
-        match input("""
-                    choose what you would like to do:
-                    1. print all users
-                    2. print all signals after sid
-                    3. print info of all objectives
-                    4. create and add a user
-                    5. create and add a signal
-                    6. create and add an objective"""):
-            case "1":
-                print(acc.introduce()[0])
-            case "2":
-                print(acc.sync(int(input("which sid to sync from?"))))
-            case "3":
-                print(acc.introduce()[1])
-            case "4":
-                username = input("enter the username for the user")
-                privlage = Privlage(int(input("""enter privlage level of the user 
-                                              0: admin
-                                              1: moderator
-                                              2: publisher
-                                              3: silenced
-                                              4: isolated""")))
-                password = input("enter the password of the user")
-                user = acc.add_user(username, privlage, password)
-                print(f"added user {user}")
-            case "5":
-                contents = input("what is the signal's content (note it is encrypted serverside if internal)")
-                mtype = MessageType(int(input("""what is the type of the message?
-                                              2: internal
-                                              1: external
-                                              0: executive""")))
-                signal = acc.save_signal(Signal(content=contents, mtype=mtype))
-                print(f"saved signal {signal}")
-            case "6":
-                name = input("enter the display name for the objective")
-                path = input("enter the file path for the implementation file")
-                with open(path, "rb") as file:
-                    implementation = file.read()
-                obj = Objective(None, name, implementation)
-                print(f"added objective {obj}")
+    try:
+        while True:
+            match input("""
+                        choose what you would like to do:
+                        1. print all users
+                        2. print all signals after sid
+                        3. print info of all objectives
+                        4. create and add a user
+                        5. create and add a signal
+                        6. create and add an objective
+                        0. exit\n> """):
+                case "0":
+                    break
+                case "1":
+                    _dump_data_class_list(acc.introduce()[0], (3, 16, 23))
+                case "2":
+                    _dump_data_class_list(list(acc.sync(int(input("which sid to sync from?: ")))),
+                                          (4, 19, 3, 16, 5))
+                case "3":
+                    _dump_data_class_list(acc.introduce()[1], (3, 16, 0))
+                case "4":
+                    username = input("enter the username for the user: ")
+                    privlage = Privlage(int(input("""enter privlage level of the user
+                                                0: admin
+                                                1: moderator
+                                                2: publisher
+                                                3: silenced
+                                                4: isolated\n> """)))
+                    password = input("enter the password of the user\n> ")
+                    user = acc.add_user(username, privlage, password)
+                    print(f"added user {user}")
+                case "5":
+                    contents = input("what is the signal's content "
+                    "(note it is encrypted serverside if internal)\n> ")
+                    mtype = MessageType(int(input("""what is the type of the message?
+                                                2: internal
+                                                1: external
+                                                0: executive\n> """)))
+                    signal = acc.save_signal(Signal(content=contents, mtype=mtype))
+                    print(f"saved signal {signal}")
+                case "6":
+                    name = input("enter the display name for the objective: ")
+                    path = input("enter the file path for the implementation file: ")
+                    with open(path, "r", encoding='UTF-8') as file:
+                        implementation = file.read()
+                    obj = acc.add_objective(Objective(None, name, implementation))
+                    print(f"added the objective with id {obj.oid} and name {obj.name}")
+    except BanStop:
+        print("you have been banned")
 
+
+def _dump_data_class_list(objects: Sequence[DataClass], paddings: tuple[int, ...]) -> None:
+    """
+    prints a sequence of dataclass objects as a table
+
+    :param objects: list of objects of the type
+    :type objects: Sequence[DataClass]
+    """
+    if len(objects) == 0:
+        return
+    _pad_tuple(map(lambda f: f.name, fields(objects[0])), paddings)
+    for o in objects:
+        _pad_tuple(astuple(o), paddings)
+
+def _pad_tuple(t: Iterable, paddings: tuple[int, ...]) -> None:
+    for i, p in zip(t,paddings):
+        print(f"{str(i):<{p}}", end="|")
+    print()
 
 if __name__ == "__main__":
     mainloop(start())
