@@ -24,19 +24,19 @@ def main() -> None:
             with sqlite3.connect(path) as db:
 
                 db.executescript("""CREATE TABLE users
-                                 (uid INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
                                   username TEXT UNIQUE,
                                   privlage INTEGER,
                                   hash TEXT,
                                   salt TEXT);
                     CREATE TABLE signals 
-                                 (sid INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
                                   Timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                   sender INTEGER,
                                   contents TEXT,
                                   type INTEGER);
                     CREATE TABLE objectives 
-                                 (oid INTEGER PRIMARY KEY AUTOINCREMENT,
+                                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
                                   name TEXT,
                                   implementation TEXT)""")
 

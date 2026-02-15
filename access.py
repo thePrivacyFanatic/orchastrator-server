@@ -71,10 +71,10 @@ class DBAccess():
         :return: the signal, now with a non-null id and timestamp
         :rtype: Signal
         """
-        if message.sid or message.timestamp or message.uid:
+        if message.id or message.timestamp or message.id:
             self.isolate()
         return Signal.from_tuple(self._save("signals",
-                                  {"sender": self.user.uid,
+                                  {"sender": self.user.id,
                                    "contents": message.content,
                                    "type": int(message.mtype)}))
 
@@ -126,7 +126,7 @@ class DBAccess():
         then throws a BanStop to immediatly halt all connection with said user
         and allow the server to broadcast an isolation notice
         """
-        sig = self._modify_perms(self.user.uid, Privlage(4))
+        sig = self._modify_perms(self.user.id, Privlage(4))
         raise BanStop(sig)
 
     def _modify_perms(self, uid: int, privlage: Privlage) -> Signal:
@@ -143,7 +143,7 @@ class DBAccess():
         """
         with self._db:
             self._db.execute("UPDATE users SET privlage = ? WHERE uid=?;", (privlage, uid))
-        return self.save_signal(Signal(uid=self.user.uid,
+        return self.save_signal(Signal(id=self.user.id,
                                 content=f'{{"type" : "perm", "uid" : {uid}}}',
                                 mtype=MessageType.EXTERNAL))
 
@@ -222,5 +222,5 @@ def authenticate(login: Login, hasher: PasswordHasher = PasswordHasher()) -> DBA
     if hasher.hash(login.password, salt=entry[3]) != entry.hash:
         raise LoginFail
     # authenticated user
-    user = User(uid=entry.uid, name=login.username, privlage=Privlage(entry.privlage))
+    user = User(id=entry.uid, name=login.username, privlage=Privlage(entry.privlage))
     return DBAccess(user, db)

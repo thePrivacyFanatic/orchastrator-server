@@ -23,7 +23,7 @@ def start() -> access.DBAccess:
     uid = int(input("enter the uid of the user: "))
     privlage = int(input("enter privlage value from 0 to 4 where 0 is admin and 4 is isolated: "))
     return access.DBAccess(
-        User(uid=uid,
+        User(id=uid,
              name=username,
              privlage=Privlage(privlage)),
              sqlite3.connect(f"db/{gid}.db"))
@@ -82,8 +82,8 @@ def mainloop(acc: access.DBAccess) -> None:
                     with open(path, "r", encoding='UTF-8') as file:
                         implementation = file.read()
                     obj = acc.add_objective(
-                        Objective(oid=None, name=name, implementation=implementation))
-                    print(f"added the objective with id {obj.oid} and name {obj.name}")
+                        Objective(id=None, name=name, implementation=implementation))
+                    print(f"added the objective with id {obj.id} and name {obj.name}")
     except BanStop:
         print("you have been banned")
 

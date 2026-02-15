@@ -63,14 +63,14 @@ class User(_entryModel):
     """
     class holding data relating to a user
 
-    :var uid: user ID, assigned by the db and autoincremented as the addition order is public
-    :vartype uid: int
+    :var id: user ID, assigned by the db and autoincremented as the addition order is public
+    :vartype id: int
     :var name: username
     :vartype name: str
     :var privlage: user's privlage level, see the enums docstring for more info
     :vartype privlage: Privlage
     """
-    uid: int
+    id: int
     name: str
     privlage:Privlage
 
@@ -79,20 +79,20 @@ class Signal(_entryModel):
     """
     a message or signal published by a user with adaquate permissions
 
-    :var sid: signal ID, assigned by the db and autoincremented
-    :vartype sid: Optional[int]
+    :var id: signal ID, assigned by the db and autoincremented
+    :vartype id: Optional[int]
     :var timestamp: unix timestamp of the message, originally assigned by the db
     :vartype timestamp: Optional[int]
-    :var uid: uid of the sender
-    :vartype uid: Optional[int]
+    :var user: id of the sender
+    :vartype user: Optional[int]
     :var content: content of the message formatted json, encrypted in internal messages
     :vartype content: str
     :var mtype: type of message, external and executive messages require serverside handeling
     :vartype mtype: MessageType
     """
-    sid: Optional[int] = None
+    id: Optional[int] = None
     timestamp: Optional[Timestamp] = None
-    uid: Optional[int] = None
+    id: Optional[int] = None
     content: str = ""
     mtype: MessageType = MessageType.INTERNAL
 
@@ -108,7 +108,7 @@ class Objective(_entryModel):
     :var implementation: dart bytecode file of objective widget
     :vartype implementation: Blob
     """
-    oid: Optional[int]
+    id: Optional[int]
     name: str
     implementation: str
 
@@ -127,7 +127,7 @@ class Login(_entryModel):
     gid: int
     username: str
     password: str
-    last_sid: int
+    last_message: int
 
 
 
