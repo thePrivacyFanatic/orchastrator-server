@@ -2,7 +2,6 @@
 main module for the orchastrator server
 
 """
-import json
 from random import random
 import asyncio
 from time import sleep
@@ -42,7 +41,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
         await ws.close(websockets.CloseCode.POLICY_VIOLATION)
         return
     connected.add(ws)
-    await ws.send(map(lambda s: s.model_dump_json(), man.sync(login.last_message)))
+    await ws.send(map(lambda s: s.model_dump_json(), man.sync(login.last_sid)))
     while True:
         try:
             message = Signal.model_validate_json(await ws.recv())
@@ -51,10 +50,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
                     man.save_signal(message)
                     broadcast(connected, message.model_dump_json())
                 case MessageType.EXTERNAL:
-                    action = json.loads(message.content)
-                    match action["type"]:
-                        case "isolation":
-                            ...
+                    ...
         except ValueError, ValidationError:
             await ws.close(websockets.CloseCode.INVALID_DATA)
             return

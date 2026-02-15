@@ -36,7 +36,7 @@ class DBAccess():
     :vartype db: Connection
     """
     user: User
-    db: sqlite3.Connection
+    _db: sqlite3.Connection
     def __init__(self, user: User, db: sqlite3.Connection) -> None:
         self.user = user
         self._db = db
@@ -60,6 +60,19 @@ class DBAccess():
             return self._db.execute(f"""SELECT *
                                     FROM {table_name}
                                     ORDER BY rowid DESC LIMIT 1""").fetchone()
+        
+    def _remove(self, table: str, id: int) -> None:
+        """
+        remove row with id from a table
+
+        :param table: title of table to remove from
+        :type table: str
+        :param id: id of entry to delete
+        :type id: int
+        """
+        with self._db:
+            self._db.execute("DELETE FROM ? ")
+        
 
     def save_signal(self, message: Signal) -> Signal:
         """
@@ -71,7 +84,7 @@ class DBAccess():
         :return: the signal, now with a non-null id and timestamp
         :rtype: Signal
         """
-        if message.id or message.timestamp or message.id:
+        if message.id or message.timestamp or message.sender:
             self.isolate()
         return Signal.from_tuple(self._save("signals",
                                   {"sender": self.user.id,
@@ -143,7 +156,7 @@ class DBAccess():
         """
         with self._db:
             self._db.execute("UPDATE users SET privlage = ? WHERE uid=?;", (privlage, uid))
-        return self.save_signal(Signal(id=self.user.id,
+        return self.save_signal(Signal(sender=self.user.id,
                                 content=f'{{"type" : "perm", "uid" : {uid}}}',
                                 mtype=MessageType.EXTERNAL))
 

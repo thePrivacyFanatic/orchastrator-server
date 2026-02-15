@@ -83,8 +83,8 @@ class Signal(_entryModel):
     :vartype id: Optional[int]
     :var timestamp: unix timestamp of the message, originally assigned by the db
     :vartype timestamp: Optional[int]
-    :var user: id of the sender
-    :vartype user: Optional[int]
+    :var uid: sender of the sender
+    :vartype sender: Optional[int]
     :var content: content of the message formatted json, encrypted in internal messages
     :vartype content: str
     :var mtype: type of message, external and executive messages require serverside handeling
@@ -92,7 +92,7 @@ class Signal(_entryModel):
     """
     id: Optional[int] = None
     timestamp: Optional[Timestamp] = None
-    id: Optional[int] = None
+    sender: Optional[int] = None
     content: str = ""
     mtype: MessageType = MessageType.INTERNAL
 
@@ -101,8 +101,8 @@ class Objective(_entryModel):
     """
     an objective widget that can send and receive data when on the client
 
-    :var oid: id of the objective
-    :vartype oid: int
+    :var id: id of the objective
+    :vartype id: int
     :var name: name for admin access, client has its own handling
     :vartype name: int
     :var implementation: dart bytecode file of objective widget
@@ -127,7 +127,7 @@ class Login(_entryModel):
     gid: int
     username: str
     password: str
-    last_message: int
+    last_sid: int
 
 
 
