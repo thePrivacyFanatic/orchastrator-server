@@ -2,6 +2,7 @@
 a CLI for accessing the DB
 has almost no error handeling as it (unlike instance_config.py) is not intended for production use
 """
+
 from dataclasses import astuple, fields
 import sqlite3
 from typing import Iterable, Sequence
@@ -14,31 +15,33 @@ from main import BanStop
 def start() -> access.DBAccess:
     """
     creates a dbaccess object as a user to a selectd group
-    
+
     :return: Description
     :rtype: DBAccess
     """
     gid = input("enter the id of the group you will be accessing: ")
     username = input("enter the name of the user you'll be acting as: ")
     uid = int(input("enter the uid of the user: "))
-    privlage = int(input("enter privlage value from 0 to 4 where 0 is admin and 4 is isolated: "))
+    privlage = int(
+        input("enter privlage value from 0 to 4 where 0 is admin and 4 is isolated: ")
+    )
     return access.DBAccess(
-        User(id=uid,
-             name=username,
-             privlage=Privlage(privlage)),
-             sqlite3.connect(f"db/{gid}.db"))
+        User(uid=uid, name=username, privlage=Privlage(privlage)),
+        sqlite3.connect(f"db/{gid}.db"),
+    )
 
 
 def mainloop(acc: access.DBAccess) -> None:
     """
     cli loop asking what to do as the user and executing
-    
+
     :param acc: the DBaccess manager that is utilized when acting on the DB
     :type acc: access.DBAccess
     """
     try:
         while True:
-            match input("""
+            match input(
+                """
                         choose what you would like to do:
                         1. print all users
                         2. print all signals after sid
@@ -46,49 +49,69 @@ def mainloop(acc: access.DBAccess) -> None:
                         4. create and add a user
                         5. create and add a signal
                         6. create and add an objective
-                        0. exit\n> """):
+                        0. exit\n> """
+            ):
                 case "0":
                     break
                 case "1":
                     _dump_data_class_list(acc.introduce().users, (3, 16, 23))
                 case "2":
-                    _dump_data_class_list(list(acc.sync(int(input("which sid to sync from?: ")))),
-                                          (4, 19, 3, 16, 5))
+                    _dump_data_class_list(
+                        list(acc.sync(int(input("which sid to sync from?: ")))),
+                        (4, 19, 3, 16, 5),
+                    )
                 case "3":
                     _dump_data_class_list(acc.introduce().objectives, (3, 16, 0))
                 case "4":
                     username = input("enter the username for the user: ")
-                    privlage = Privlage(int(input("""enter privlage level of the user
+                    privlage = Privlage(
+                        int(
+                            input(
+                                """enter privlage level of the user
                                                 0: admin
                                                 1: moderator
                                                 2: publisher
                                                 3: silenced
-                                                4: isolated\n> """)))
+                                                4: isolated\n> """
+                            )
+                        )
+                    )
                     password = input("enter the password of the user\n> ")
-                    user = acc.add_user(username, privlage, password)
-                    print(f"added user {user}")
+                    signal = acc.add_user(username, privlage, password)
+                    print(signal.model_dump_json())
                 case "5":
-                    contents = input("what is the signal's content "
-                    "(note it is encrypted serverside if internal)\n> ")
-                    mtype = MessageType(int(input("""what is the type of the message?
+                    contents = input(
+                        "what is the signal's content "
+                        "(note it is encrypted serverside if internal)\n> "
+                    )
+                    mtype = MessageType(
+                        int(
+                            input(
+                                """what is the type of the message?
                                                 2: internal
                                                 1: external
-                                                0: executive\n> """)))
+                                                0: executive\n> """
+                            )
+                        )
+                    )
                     signal = acc.save_signal(Signal(content=contents, mtype=mtype))
                     print(f"saved signal {signal}")
                 case "6":
                     name = input("enter the display name for the objective: ")
                     path = input("enter the file path for the implementation file: ")
-                    with open(path, "r", encoding='UTF-8') as file:
+                    with open(path, "r", encoding="UTF-8") as file:
                         implementation = file.read()
-                    obj = acc.add_objective(
-                        Objective(id=None, name=name, implementation=implementation))
-                    print(f"added the objective with id {obj.id} and name {obj.name}")
+                    signal = acc.add_objective(
+                        Objective(oid=None, name=name, implementation=implementation)
+                    )
+                    print(signal.model_dump_json())
     except BanStop:
         print("you have been banned")
 
 
-def _dump_data_class_list(objects: Sequence[BaseModel], paddings: tuple[int, ...]) -> None:
+def _dump_data_class_list(
+    objects: Sequence[BaseModel], paddings: tuple[int, ...]
+) -> None:
     """
     prints a sequence of dataclass objects as a table
 
@@ -101,10 +124,12 @@ def _dump_data_class_list(objects: Sequence[BaseModel], paddings: tuple[int, ...
     for o in objects:
         _pad_tuple(astuple(o), paddings)
 
+
 def _pad_tuple(t: Iterable, paddings: tuple[int, ...]) -> None:
-    for i, p in zip(t,paddings):
+    for i, p in zip(t, paddings):
         print(f"{str(i):<{p}}", end="|")
     print()
+
 
 if __name__ == "__main__":
     mainloop(start())

@@ -1,6 +1,7 @@
 """
 The file containing the data classes and enums for the data used by the server to handle data
 """
+
 from enum import IntEnum
 from sqlite3.dbapi2 import Timestamp
 from typing import Optional, Self
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 
 class _entryModel(BaseModel):
     @classmethod
-    def from_tuple(cls, tpl:tuple) -> Self:
+    def from_tuple(cls, tpl: tuple) -> Self:
         """
         instantiates the model from a tuple like in a dataclass
 
@@ -18,7 +19,6 @@ class _entryModel(BaseModel):
         :rtype: Self
         """
         return cls(**dict(zip(cls.model_fields.keys(), tpl)))
-
 
 
 class Privlage(IntEnum):
@@ -38,6 +38,7 @@ class Privlage(IntEnum):
     :var ISOLATED: temporary permission level of users that overreach their
     :vartype ISOLATED: Literal[4]
     """
+
     ADMIN = 0
     MODERATOR = 1
     PUBLISHER = 2
@@ -55,6 +56,7 @@ class MessageType(IntEnum):
     :var EXTERNAL: message concerning user permissions, unecrypted, requires high permissions
     :vartype EXTERNAL: Literal[1]
     """
+
     INTERNAL = 0
     EXTERNAL = 1
 
@@ -63,16 +65,17 @@ class User(_entryModel):
     """
     class holding data relating to a user
 
-    :var id: user ID, assigned by the db and autoincremented as the addition order is public
-    :vartype id: int
+    :var uid: user ID, assigned by the db and autoincremented as the addition order is public
+    :vartype uid: int
     :var name: username
     :vartype name: str
     :var privlage: user's privlage level, see the enums docstring for more info
     :vartype privlage: Privlage
     """
-    id: int
+
+    uid: int
     name: str
-    privlage:Privlage
+    privlage: Privlage
 
 
 class Signal(_entryModel):
@@ -90,7 +93,8 @@ class Signal(_entryModel):
     :var mtype: type of message, external and executive messages require serverside handeling
     :vartype mtype: MessageType
     """
-    id: Optional[int] = None
+
+    sid: Optional[int] = None
     timestamp: Optional[Timestamp] = None
     sender: Optional[int] = None
     content: str = ""
@@ -108,7 +112,8 @@ class Objective(_entryModel):
     :var implementation: dart bytecode file of objective widget
     :vartype implementation: Blob
     """
-    id: Optional[int]
+
+    oid: Optional[int]
     name: str
     implementation: str
 
@@ -124,11 +129,11 @@ class Login(_entryModel):
     :var password: the user's password
     :vartype password: str
     """
+
     gid: int
     username: str
     password: str
     last_sid: int
-
 
 
 class Introduction(BaseModel):
@@ -139,5 +144,6 @@ class Introduction(BaseModel):
     :var users: users currently in the group
     :var objectives: objectives currently used in the group
     """
+
     users: tuple[User, ...]
     objectives: tuple[Objective, ...]
