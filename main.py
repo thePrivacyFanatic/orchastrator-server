@@ -12,7 +12,7 @@ import websockets
 from websockets.asyncio.server import serve, broadcast
 from argon2 import PasswordHasher
 
-from dc import Login, MessageType, Privlage, Signal
+from dc import Login, MessageType, Privilege, Signal
 from access import LoginFail, BanStop, authenticate
 
 
@@ -46,7 +46,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
         await ws.close(websockets.CloseCode.POLICY_VIOLATION)
         return
 
-    if access.user.privlage == Privlage.ISOLATED:
+    if access.user.privilege == Privilege.ISOLATED:
         await ws.close(websockets.CloseCode.POLICY_VIOLATION)
         return
 
@@ -55,7 +55,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
 
     listen = True
 
-    if access.user.privlage == Privlage.SILENCED:
+    if access.user.privilege == Privilege.SILENCED:
         listen = False
         await ws.wait_closed()
 

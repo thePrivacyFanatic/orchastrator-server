@@ -21,7 +21,7 @@ class _entryModel(BaseModel):
         return cls(**dict(zip(cls.model_fields.keys(), tpl)))
 
 
-class Privlage(IntEnum):
+class Privilege(IntEnum):
     """
     an enum representing the level of privlage a user has
     the lower the level the greater the access
@@ -75,7 +75,7 @@ class User(_entryModel):
 
     uid: int
     name: str
-    privlage: Privlage
+    privilege: Privilege
 
 
 class Signal(_entryModel):

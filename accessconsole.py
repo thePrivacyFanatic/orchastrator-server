@@ -8,7 +8,7 @@ import sqlite3
 from typing import Iterable, Sequence
 from pydantic import BaseModel
 import access
-from dc import MessageType, Objective, Privlage, Signal, User
+from dc import MessageType, Objective, Privilege, Signal, User
 from main import BanStop
 
 
@@ -26,7 +26,7 @@ def start() -> access.DBAccess:
         input("enter privlage value from 0 to 4 where 0 is admin and 4 is isolated: ")
     )
     return access.DBAccess(
-        User(uid=uid, name=username, privlage=Privlage(privlage)),
+        User(uid=uid, name=username, privilege=Privilege(privlage)),
         sqlite3.connect(f"db/{gid}.db"),
     )
 
@@ -64,7 +64,7 @@ def mainloop(acc: access.DBAccess) -> None:
                     _dump_data_class_list(acc.introduce().objectives, (3, 16, 0))
                 case "4":
                     username = input("enter the username for the user: ")
-                    privlage = Privlage(
+                    privlage = Privilege(
                         int(
                             input(
                                 """enter privlage level of the user
@@ -122,7 +122,7 @@ def _dump_data_class_list(
         return
     _pad_tuple(map(lambda f: f.name, fields(objects[0])), paddings)
     for o in objects:
-        _pad_tuple(astuple(o), paddings)
+        _pad_tuple([i[1] for i in o.model_dump().values()], paddings)
 
 
 def _pad_tuple(t: Iterable, paddings: tuple[int, ...]) -> None:

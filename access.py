@@ -5,7 +5,7 @@ from secrets import token_bytes
 from os.path import isfile
 from typing import Any, NoReturn
 from argon2 import PasswordHasher
-from dc import Introduction, MessageType, Objective, Privlage, User, Signal, Login
+from dc import Introduction, MessageType, Objective, Privilege, User, Signal, Login
 
 
 class LoginFail(Exception):
@@ -98,7 +98,7 @@ class DBAccess:
     def add_user(
         self,
         username: str,
-        privlage: Privlage,
+        privlage: Privilege,
         password: str,
         hasher: PasswordHasher = PasswordHasher(),
     ) -> Signal:
@@ -116,7 +116,7 @@ class DBAccess:
         :return: a user object of the new user
         :rtype: User
         """
-        if self.user.privlage > min(privlage, Privlage.MODERATOR):
+        if self.user.privilege > min(privlage, Privilege.MODERATOR):
             self.isolate()
         salt = token_bytes(16)
         phash = hasher.hash(password=password, salt=salt)
@@ -151,11 +151,11 @@ class DBAccess:
         :return: signal to be broadcast to notify about the removal
         :rtype: Signal
         """
-        priv = Privlage(
+        priv = Privilege(
             self._db.execute("SELECT privlage FROM users where id=?", (uid,)).fetchone()
         )
 
-        if priv != Privlage.ISOLATED or self.user.privlage > Privlage.MODERATOR:
+        if priv != Privilege.ISOLATED or self.user.privilege > Privilege.MODERATOR:
             self.isolate()
 
         self._db.execute("DELETE FROM users WHERE id=?", (uid,))
@@ -175,7 +175,7 @@ class DBAccess:
         :return: signal notifying users about the objective
         :rtype: Signal
         """
-        if self.user.privlage > Privlage.ADMIN:
+        if self.user.privilege > Privilege.ADMIN:
             self.isolate()
         obj = Objective.from_tuple(
             self._save(
@@ -200,7 +200,7 @@ class DBAccess:
         :return: signal notifying users that the objective has been removed
         :rtype: Signal
         """
-        if self.user.privlage != Privlage.ADMIN:
+        if self.user.privilege != Privilege.ADMIN:
             self.isolate()
         self._db.execute("DELETE FROM objectives WHERE id=?", (oid,))
         return self.save_signal(
@@ -216,10 +216,10 @@ class DBAccess:
         then throws a BanStop to immediatly halt all connection with said user
         and allow the server to broadcast an isolation notice
         """
-        sig = self._modify_perms(self.user.uid, Privlage(4))
+        sig = self._modify_perms(self.user.uid, Privilege(4))
         raise BanStop(signal=sig)
 
-    def _modify_perms(self, uid: int, privlage: Privlage) -> Signal:
+    def _modify_perms(self, uid: int, privlage: Privilege) -> Signal:
         """
         private method to modify a user's permission
         should be encapsulated by methods enforcing authorization
@@ -243,7 +243,7 @@ class DBAccess:
             )
         )
 
-    def set_permission(self, uid: int, privlage: Privlage) -> Signal:
+    def set_permission(self, uid: int, privlage: Privilege) -> Signal:
         """
         function that allowes increasing permissions of a user
         bans users with insufficient permissions (less than mod or mod promoting above publisher)
@@ -259,14 +259,14 @@ class DBAccess:
             "SELECT privlage FROM users WHERE uid=?", (uid,)
         ).fetchone()
         if (
-            self.user.privlage > Privlage.MODERATOR
+            self.user.privilege > Privilege.MODERATOR
             # insufficient permission
             or (
-                self.user.privlage == Privlage.MODERATOR
-                and privlage < Privlage.PUBLISHER
+                self.user.privilege == Privilege.MODERATOR
+                and privlage < Privilege.PUBLISHER
             )
             # mod privlage escelation
-            or self.user.privlage > og_priv
+            or self.user.privilege > og_priv
         ):
             # userping attempt
             self.isolate()
@@ -357,5 +357,5 @@ def authenticate(login: Login, hasher: PasswordHasher = PasswordHasher()) -> DBA
     if hasher.hash(login.password, salt=entry[3]) != entry.hash:
         raise LoginFail
     # authenticated user
-    user = User(uid=entry.uid, name=login.username, privlage=Privlage(entry.privlage))
+    user = User(uid=entry.uid, name=login.username, privilege=Privilege(entry.privlage))
     return DBAccess(user, db)
