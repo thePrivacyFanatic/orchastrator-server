@@ -97,7 +97,6 @@ def mainloop(acc: access.DBAccess) -> None:
                     signal = acc.save_signal(Signal(content=contents, mtype=mtype))
                     print(f"saved signal {signal}")
                 case "6":
-                    name = input("enter the display name for the objective: ")
                     path = input("enter the file path for the implementation file: ")
                     with open(path, "rb", encoding="UTF-8") as file:
                         implementation = file.read()
