@@ -62,6 +62,7 @@ class DBAccess:
             self._db.execute(
                 "INSERT INTO "
                 + table_name
+                + " "
                 + str(tuple(values.keys()))
                 + " VALUES "
                 + str(tuple(values.values()))
