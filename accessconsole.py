@@ -3,7 +3,7 @@ a CLI for accessing the DB
 has almost no error handeling as it (unlike instance_config.py) is not intended for production use
 """
 
-from dataclasses import astuple, fields
+from dataclasses import fields
 import sqlite3
 from typing import Iterable, Sequence
 from pydantic import BaseModel
@@ -99,10 +99,10 @@ def mainloop(acc: access.DBAccess) -> None:
                 case "6":
                     name = input("enter the display name for the objective: ")
                     path = input("enter the file path for the implementation file: ")
-                    with open(path, "r", encoding="UTF-8") as file:
+                    with open(path, "rb", encoding="UTF-8") as file:
                         implementation = file.read()
                     signal = acc.add_objective(
-                        Objective(oid=None, name=name, implementation=implementation)
+                        Objective(oid=None, implementation=implementation)
                     )
                     print(signal.model_dump_json())
     except BanStop:

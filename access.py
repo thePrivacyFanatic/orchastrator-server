@@ -141,31 +141,6 @@ class DBAccess:
             )
         )
 
-    def remove_user(self, uid: int) -> Signal:
-        """
-        remove an isolated user from the users table and craft a signal to notify about it
-
-        :param uid: the uid of the user that should be removed,
-        checking for isolation delegates access control to the permission change system
-        :type uid: int
-        :return: signal to be broadcast to notify about the removal
-        :rtype: Signal
-        """
-        priv = Privilege(
-            self._db.execute("SELECT privlage FROM users where id=?", (uid,)).fetchone()
-        )
-
-        if priv != Privilege.ISOLATED or self.user.privilege > Privilege.MODERATOR:
-            self.isolate()
-
-        self._db.execute("DELETE FROM users WHERE id=?", (uid,))
-        return self.save_signal(
-            Signal(
-                content=f'{{"type": "user removal", "uid": {uid}}}',
-                mtype=MessageType.EXTERNAL,
-            )
-        )
-
     def add_objective(self, obj: Objective) -> Signal:
         """
         add an objective to the db and return a notifying signal
@@ -178,9 +153,7 @@ class DBAccess:
         if self.user.privilege > Privilege.ADMIN:
             self.isolate()
         obj = Objective.from_tuple(
-            self._save(
-                "objectives", {"name": obj.name, "implementation": obj.implementation}
-            )
+            self._save("objectives", {"implementation": obj.implementation})
         )
         return self.save_signal(
             Signal(
@@ -190,7 +163,7 @@ class DBAccess:
             )
         )
 
-    def remove_objective(self, oid: int) -> Signal:
+    def hide_objective(self, oid: int) -> Signal:
         """
         remove an objective if possessing permissions and return a notifying signal
         this will not remove the objective's data
@@ -205,7 +178,7 @@ class DBAccess:
         self._db.execute("DELETE FROM objectives WHERE id=?", (oid,))
         return self.save_signal(
             Signal(
-                content=f'{{"type": "objective removal", ' f'"oid": {oid}}}',
+                content=f'{{"type": "objective hiding", ' f'"oid": {oid}}}',
                 mtype=MessageType.EXTERNAL,
             )
         )
@@ -294,6 +267,7 @@ class DBAccess:
     def introduce(self) -> Introduction:
         """
         dumps all current user and objective data to two lists in a tuple
+        currently only kept for compatibillity reasons
         """
         return Introduction(
             users=tuple(

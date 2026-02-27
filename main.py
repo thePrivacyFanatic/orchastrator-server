@@ -28,11 +28,6 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
     :param websocket: Description
     :type websocket: websockets.ServerConnection
     """
-    version = await ws.recv()
-    if version != "1":
-        await ws.close(websockets.CloseCode.PROTOCOL_ERROR)
-        return
-
     try:
         login = Login.model_validate_json(await ws.recv())  # validate data
         access = authenticate(login)  # authentication
@@ -93,7 +88,7 @@ async def main() -> None:
     """
     entrypoint function of the orchastrator server
     """
-    async with serve(on_connect) as server:
+    async with serve(on_connect, "0.0.0.0", 443) as server:
         await server.serve_forever()
 
 

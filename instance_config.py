@@ -5,8 +5,9 @@ a CLI utility for configuring the instance as the user 'System'
 from pathlib import Path
 import sqlite3
 import random
-from secrets import token_bytes
-from argon2 import PasswordHasher
+
+import access
+from dc import Privilege, User
 
 
 def main() -> None:
@@ -47,17 +48,17 @@ def main() -> None:
                                   implementation TEXT)"""
                 )
 
-                print("created tables, setting up first admin")
+                print("created tables, accessing")
+
+                dba = access.DBAccess(
+                    User(uid=0, name="SYSTEM", privilege=Privilege.ADMIN), db
+                )
 
                 username = input("type a username\n > ")
+                password = input("type a password or passphrase\n > ")
 
-                salt = token_bytes(16)
-                phash = PasswordHasher().hash(
-                    password=input("type a password or passphrase\n > "), salt=salt
-                )
-                db.execute(
-                    "INSERT INTO users (username, hash, salt, privlage) VALUES (?, ?, ?, 0)",
-                    (username, phash, salt),
+                dba.add_user(
+                    username=username, privlage=Privilege.ADMIN, password=password
                 )
 
                 print("set up first admin " + username)

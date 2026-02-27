@@ -114,7 +114,6 @@ class Objective(_entryModel):
     """
 
     oid: Optional[int]
-    name: str
     implementation: str
 
 
