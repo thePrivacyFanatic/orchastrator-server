@@ -2,7 +2,6 @@
 a CLI utility for configuring the instance as the user 'System'
 """
 
-import os
 import pathlib
 import sqlite3
 import random
