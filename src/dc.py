@@ -129,10 +129,8 @@ class Login(_entryModel):
     :vartype password: str
     """
 
-    gid: int
     username: str
     password: str
-    last_sid: int
 
 
 class Introduction(BaseModel):
@@ -146,3 +144,6 @@ class Introduction(BaseModel):
 
     users: tuple[User, ...]
     objectives: tuple[Objective, ...]
+
+
+systemUser = User(uid=0, name="SYSTEM", privilege=Privilege.ADMIN)

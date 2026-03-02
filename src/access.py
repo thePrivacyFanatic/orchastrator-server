@@ -1,16 +1,17 @@
 """module containing the dbaccess class which inherits from a sqlite connction"""
 
 import sqlite3
-from secrets import token_bytes
+from secrets import token_hex
 from os.path import isfile
 from typing import Any, NoReturn
 from argon2 import PasswordHasher
-from dc import Introduction, MessageType, Objective, Privilege, User, Signal, Login
+import dc
 
 
 class LoginFail(Exception):
     """
-    an exception indicating an incorrect login, should always be handled
+    an exception indicating an incorrect login, should always be caught
+    has a reason string as the first arg (nonexistent group/user, wrong credentials and instfficient permission)
     """
 
 
@@ -22,9 +23,9 @@ class BanStop(Exception):
     :vartype signal: Signal
     """
 
-    signal: Signal
+    signal: dc.Signal
 
-    def __init__(self, signal: Signal, *args: object) -> None:
+    def __init__(self, signal: dc.Signal, *args: object) -> None:
         super().__init__(*args)
         self.signal = signal
 
@@ -33,18 +34,48 @@ class DBAccess:
     """
     an access manager handeling authentication when constructed and authorization for all commands
 
-    :var user: user object of connected user
-    :vartype user: User
-    :var db: database connection to use
-    :vartype db: Connection
+    :var gid: gid of group to use
+    :vartype gid: str
     """
 
-    user: User
+    user: dc.User
     _db: sqlite3.Connection
 
-    def __init__(self, user: User, db: sqlite3.Connection) -> None:
-        self.user = user
-        self._db = db
+    def __init__(self, gid: str) -> None:
+        path = f"./db/{gid}.db"
+        if isfile(path):
+            self._db = sqlite3.connect(path)
+        else:
+            raise LoginFail(f"nonexistent group: {gid}")
+
+    def authenticate(
+        self, login: dc.Login, hasher: PasswordHasher = PasswordHasher()
+    ) -> None:
+        """
+        authenticates a user from a login, sets it as the dbaccesses user
+
+        :param login: login info for user
+        :type login: Login
+        :param hasher: optional hasher override
+        :type hasher: PasswordHasher
+        """
+        entry: tuple[int, str, int, str, str]
+        if not (
+            entry := self._db.execute(
+                "SELECT uid, username, privilege, hash, salt FROM users WHERE username=?",
+                (login.username,),
+            ).fetchone()
+        ):
+            raise LoginFail(f"nonexistent user {entry[1]}")
+        # validated user existence
+        if hasher.hash(login.password, salt=entry[4].encode()) != entry[3]:
+            raise LoginFail("wrong password")
+        # authenticated user
+        if dc.Privilege(entry[2]) == dc.Privilege.ISOLATED:
+            raise LoginFail(f"user banned {dc.Login.username}")
+        self.user = dc.User(
+            uid=entry[0], name=login.username, privilege=dc.Privilege(entry[2])
+        )
 
     def _save(self, table_name: str, values: dict[str, Any]) -> tuple:
         """
@@ -59,7 +90,7 @@ class DBAccess:
         :rtype: tuple[Any, ...]
         """
         with self._db:
-            self._db.execute(
+            query = (
                 "INSERT INTO "
                 + table_name
                 + " "
@@ -67,12 +98,14 @@ class DBAccess:
                 + " VALUES "
                 + str(tuple(values.values()))
             )
+            # print(query)
+            self._db.execute(query)
 
             return self._db.execute(
                 f"""SELECT * FROM {table_name} ORDER BY rowid DESC LIMIT 1"""
             ).fetchone()
 
-    def save_signal(self, message: Signal) -> Signal:
+    def save_signal(self, message: dc.Signal) -> dc.Signal:
         """
         add a message to the db and return it with an id and a timesstamp
         handels access control as well
@@ -85,7 +118,7 @@ class DBAccess:
         if message.sid or message.timestamp or message.sender:
             self.isolate()
 
-        return Signal.from_tuple(
+        return dc.Signal.from_tuple(
             self._save(
                 "signals",
                 {
@@ -99,17 +132,17 @@ class DBAccess:
     def add_user(
         self,
         username: str,
-        privlage: Privilege,
+        privilege: dc.Privilege,
         password: str,
         hasher: PasswordHasher = PasswordHasher(),
-    ) -> Signal:
+    ) -> dc.Signal:
         """
         add a user to the db and return a notification signal
 
         :param username: name of the new user
         :type username: str
-        :param privlage: initial privlage level of the new user
-        :type privlage: Privlage
+        :param privilege: initial privilege level of the new user
+        :type privilege: privilege
         :param password: password of the new user
         :type password: str
         :param hasher: optional custom hash settings for the password
@@ -117,17 +150,17 @@ class DBAccess:
         :return: a user object of the new user
         :rtype: User
         """
-        if self.user.privilege > min(privlage, Privilege.MODERATOR):
+        if self.user.privilege > min(privilege, dc.Privilege.MODERATOR):
             self.isolate()
-        salt = token_bytes(16)
-        phash = hasher.hash(password=password, salt=salt)
+        salt = token_hex(16)
+        phash = hasher.hash(password=password, salt=salt.encode())
 
-        user = User.from_tuple(
+        user = dc.User.from_tuple(
             self._save(
                 "users",
                 {
                     "username": username,
-                    "privlage": int(privlage),
+                    "privilege": int(privilege),
                     "hash": phash,
                     "salt": salt,
                 },
@@ -135,15 +168,16 @@ class DBAccess:
         )
 
         return self.save_signal(
-            Signal(
+            dc.Signal(
                 content=f'{{"type": "user addition", '
                 f'"user": {user.model_dump_json()}}}',
-                mtype=MessageType.EXTERNAL,
+                mtype=dc.MessageType.EXTERNAL,
             )
         )
 
-    def add_objective(self, obj: Objective) -> Signal:
+    def add_objective(self, obj: dc.Objective) -> dc.Signal:
         """
+        currently dead code, waiting for flutter_eval to work to use for modularity
         add an objective to the db and return a notifying signal
 
         :param obj: the objective to add
@@ -151,20 +185,20 @@ class DBAccess:
         :return: signal notifying users about the objective
         :rtype: Signal
         """
-        if self.user.privilege > Privilege.ADMIN:
+        if self.user.privilege > dc.Privilege.ADMIN:
             self.isolate()
-        obj = Objective.from_tuple(
+        obj = dc.Objective.from_tuple(
             self._save("objectives", {"implementation": obj.implementation})
         )
         return self.save_signal(
-            Signal(
+            dc.Signal(
                 content=f'{{"type" : "objective addition", '
                 f'"objective": {obj.model_dump_json()}}}',
-                mtype=MessageType.EXTERNAL,
+                mtype=dc.MessageType.EXTERNAL,
             )
         )
 
-    def hide_objective(self, oid: int) -> Signal:
+    def hide_objective(self, oid: int) -> dc.Signal:
         """
         remove an objective if possessing permissions and return a notifying signal
         this will not remove the objective's data
@@ -174,13 +208,13 @@ class DBAccess:
         :return: signal notifying users that the objective has been removed
         :rtype: Signal
         """
-        if self.user.privilege != Privilege.ADMIN:
+        if self.user.privilege != dc.Privilege.ADMIN:
             self.isolate()
         self._db.execute("DELETE FROM objectives WHERE id=?", (oid,))
         return self.save_signal(
-            Signal(
+            dc.Signal(
                 content=f'{{"type": "objective hiding", ' f'"oid": {oid}}}',
-                mtype=MessageType.EXTERNAL,
+                mtype=dc.MessageType.EXTERNAL,
             )
         )
 
@@ -190,64 +224,65 @@ class DBAccess:
         then throws a BanStop to immediatly halt all connection with said user
         and allow the server to broadcast an isolation notice
         """
-        sig = self._modify_perms(self.user.uid, Privilege(4))
+        self.user = dc.systemUser
+        sig = self._modify_perms(self.user.uid, dc.Privilege(4))
         raise BanStop(signal=sig)
 
-    def _modify_perms(self, uid: int, privlage: Privilege) -> Signal:
+    def _modify_perms(self, uid: int, privilege: dc.Privilege) -> dc.Signal:
         """
         private method to modify a user's permission
         should be encapsulated by methods enforcing authorization
 
         :param uid: user id of user getting promoted or demoted
         :type uid: int
-        :param privlage: new privlage to be set
-        :type privlage: Privlage
+        :param privilege: new privilege to be set
+        :type privilege: Privilege
         :return: signal to notify users of the change
         :rtype: Signal
         """
         with self._db:
             self._db.execute(
-                "UPDATE users SET privlage = ? WHERE uid=?;", (privlage, uid)
+                "UPDATE users SET privilege = ? WHERE uid=?;", (privilege, uid)
             )
         return self.save_signal(
-            Signal(
+            dc.Signal(
                 sender=self.user.uid,
-                content=f'{{"type" : "perm", "uid" : {uid}, "new": {privlage}}}',
-                mtype=MessageType.EXTERNAL,
+                content=f'{{"type" : "perm", "uid" : {uid}, "new": {privilege}}}',
+                mtype=dc.MessageType.EXTERNAL,
             )
         )
 
-    def set_permission(self, uid: int, privlage: Privilege) -> Signal:
+    def set_permission(self, uid: int, privilege: dc.Privilege) -> dc.Signal:
         """
         function that allowes increasing permissions of a user
         bans users with insufficient permissions (less than mod or mod promoting above publisher)
 
         :param uid: uid of user getting promoted
         :type uid: int
-        :param privlage: new privlage to be granted if allowed
-        :type privlage: Privlage
+        :param privilege: new privilege to be granted if allowed
+        :type privilege: privilege
         :return: signal to notify users of the promotion
         :rtype: Signal
         """
         og_priv = self._db.execute(
-            "SELECT privlage FROM users WHERE uid=?", (uid,)
+            "SELECT privilege FROM users WHERE uid=?", (uid,)
         ).fetchone()
         if (
-            self.user.privilege > Privilege.MODERATOR
+            self.user.privilege > dc.Privilege.MODERATOR
             # insufficient permission
             or (
-                self.user.privilege == Privilege.MODERATOR
-                and privlage < Privilege.PUBLISHER
+                self.user.privilege == dc.Privilege.MODERATOR
+                and privilege < dc.Privilege.PUBLISHER
             )
-            # mod privlage escelation
+            # mod privilege escelation
             or self.user.privilege > og_priv
         ):
             # userping attempt
             self.isolate()
         else:
-            return self._modify_perms(uid, privlage)
+            return self._modify_perms(uid, privilege)
 
-    def sync(self, last_sid: int) -> tuple[Signal, ...]:
+    def sync(self, last_sid: int) -> tuple[dc.Signal, ...]:
         """
         returns all signals sent after a specified one
 
@@ -258,28 +293,29 @@ class DBAccess:
         """
         return tuple(
             map(
-                lambda s: Signal(*s),
+                dc.Signal.from_tuple,
                 self._db.execute(
-                    "SELECT * FROM signals WHERE sid>?", (last_sid,)
+                    "SELECT sid, timestamp, sender, contents, type FROM signals WHERE sid>?",
+                    (last_sid,),
                 ).fetchall(),
             )
         )
 
-    def introduce(self) -> Introduction:
+    def introduce(self) -> dc.Introduction:
         """
         dumps all current user and objective data to two lists in a tuple
         currently only kept for compatibillity reasons
         """
-        return Introduction(
+        return dc.Introduction(
             users=tuple(
                 map(
-                    lambda u: User.from_tuple(u[:3]),
+                    lambda u: dc.User.from_tuple(u[:3]),
                     self._db.execute("SELECT * FROM users").fetchall(),
                 )
             ),
             objectives=tuple(
                 map(
-                    Objective.from_tuple,
+                    dc.Objective.from_tuple,
                     self._db.execute("SELECT * FROM objectives").fetchall(),
                 )
             ),
@@ -296,41 +332,12 @@ class DBAccess:
         :param hasher: optional hasher for alternate hash settings
         :type hasher: PasswordHasher
         """
-        salt = self._db.execute(
-            "SELECT salt FROM users WHERE uid=?", (self.user.uid,)
-        ).fetchone()
+        salt = (
+            self._db.execute("SELECT salt FROM users WHERE uid=?", (self.user.uid,))
+            .fetchone()
+            .encode()
+        )
         new_hash = hasher.hash(new_password, salt=salt)
         self._db.execute(
             "UPDATE users SET hash=? WHERE uid=?", (new_hash, self.user.uid)
         )
-
-
-def authenticate(login: Login, hasher: PasswordHasher = PasswordHasher()) -> DBAccess:
-    """
-    takes a login object and an optional alternate hasher and creates a dbaccess instance
-
-    :param login: obect with instance id username and password
-    :type login: Login
-    :param hasher: optional hasher for alternate hash settings
-    :type hasher: PasswordHasher
-    :return: instance for the user to access said instance
-    :rtype: DBAccess
-    """
-    path = f"db/{login.gid}.db"
-    if not isfile(path):
-        raise LoginFail
-    # validating group existence
-    db = sqlite3.connect(path)
-    if not (
-        entry := db.execute(
-            "SELECT uid, username, hash, salt, privlage FROM users WHERE username=?",
-            (login.username,),
-        ).fetchone()
-    ):
-        raise LoginFail
-    # validating user existence
-    if hasher.hash(login.password, salt=entry[3]) != entry.hash:
-        raise LoginFail
-    # authenticated user
-    user = User(uid=entry.uid, name=login.username, privilege=Privilege(entry.privlage))
-    return DBAccess(user, db)

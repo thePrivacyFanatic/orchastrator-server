@@ -1,0 +1,12 @@
+services:
+    orchastrator:
+        build: .
+        ports:
+        - "9000:9000"
+        volumes:
+        - orchastratorDB:/usr/src/app/db
+
+volumes:
+    orchastratorDB:
+        external: true
+        name: "orchastratorDB"

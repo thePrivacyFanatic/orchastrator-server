@@ -3,21 +3,25 @@ main module for the orchastrator server
 
 """
 
+from http import HTTPStatus
 import json
-from random import random
+import logging
+import random
 import asyncio
-from time import sleep
-from pydantic import ValidationError
+import signal
+import time
+import pydantic
 import websockets
-from websockets.asyncio.server import serve, broadcast
-from argon2 import PasswordHasher
+import websockets.asyncio.server
+import argon2
 
-from dc import Login, MessageType, Privilege, Signal
-from access import LoginFail, BanStop, authenticate
+import dc
+from access import DBAccess, BanStop, LoginFail
 
 
-connected: set[websockets.ServerConnection] = set()
-hasher = PasswordHasher()
+connected: dict[str, set[websockets.ServerConnection]] = {}
+hasher = argon2.PasswordHasher()
+logging.basicConfig(level=logging.DEBUG)
 
 
 async def on_connect(ws: websockets.ServerConnection) -> None:
@@ -28,68 +32,137 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
     :param websocket: Description
     :type websocket: websockets.ServerConnection
     """
-    try:
-        login = Login.model_validate_json(await ws.recv())  # validate data
-        access = authenticate(login)  # authentication
 
-    except TypeError, ValidationError:
-        await ws.close(websockets.CloseCode.PROTOCOL_ERROR)
+    login = await greet(ws=ws)
+
+    if not login:
         return
 
-    except LoginFail:
-        sleep(4 * random())  # makes a login timing attack near impossible
-        await ws.close(websockets.CloseCode.POLICY_VIOLATION)
-        return
+    dbaccess, peers = login
 
-    if access.user.privilege == Privilege.ISOLATED:
-        await ws.close(websockets.CloseCode.POLICY_VIOLATION)
-        return
+    last_sid = int(await ws.recv())
 
-    connected.add(ws)
-    await ws.send(map(lambda s: s.model_dump_json(), access.sync(login.last_sid)))
+    for m in dbaccess.sync(last_sid):
+        await ws.send(m.model_dump_json())
 
     listen = True
 
-    if access.user.privilege == Privilege.SILENCED:
+    if dbaccess.user.privilege == dc.Privilege.SILENCED:
         listen = False
         await ws.wait_closed()
 
     while listen:
-        message_to_relay: Signal | None = None
+        message_to_relay: dc.Signal | None = None
         try:
-            message_received = Signal.model_validate_json(await ws.recv())
+            message_received = dc.Signal.model_validate_json(await ws.recv())
             match message_received.mtype:
-                case MessageType.INTERNAL:
-                    message_to_relay = access.save_signal(message_received)
-                    broadcast(connected, message_received.model_dump_json())
-                case MessageType.EXTERNAL:
+                case dc.MessageType.INTERNAL:
+                    message_to_relay = dbaccess.save_signal(message_received)
+                    websockets.asyncio.server.broadcast(
+                        peers, message_received.model_dump_json()
+                    )
+                case dc.MessageType.EXTERNAL:
                     content = json.loads(message_received.content)
                     match content["type"]:
                         case "user addition":
-                            access.add_user(
+                            dbaccess.add_user(
                                 content["username"],
                                 content["privlage"],
                                 content["password"],
                             )
             if message_to_relay:
-                broadcast(connected, message_to_relay.model_dump_json())
-        except ValueError, ValidationError:
+                websockets.asyncio.server.broadcast(
+                    peers, message_to_relay.model_dump_json()
+                )
+        except ValueError, pydantic.ValidationError:
             await ws.close(websockets.CloseCode.INVALID_DATA)
+            break
+        except websockets.ConnectionClosedOK:
+            logging.info("a conncetion has closed normally")
+            break
+        except websockets.ConnectionClosedError:
+            logging.info("a connection has closed abnormally")
             break
         except BanStop as ban:
             await ws.close(websockets.CloseCode.POLICY_VIOLATION)
-            broadcast(connected, ban.signal.model_dump_json())
+            websockets.asyncio.server.broadcast(peers, ban.signal.model_dump_json())
             break
-    connected.remove(ws)
+    peers.remove(ws)
     return
+
+
+async def greet(
+    ws: websockets.ServerConnection,
+) -> tuple[DBAccess, set[websockets.ServerConnection]] | None:
+    """
+    function that handles authenticating new users
+
+    :param ws: connection to operate over
+    :type ws: websockets.ServerConnection
+    :return: a tuple with a DBAccess instance and the set of all users in the group
+    :rtype: tuple[DBAccess, set[websockets.ServerConnection]] | None
+    """
+
+    if not ws.request:
+        await ws.close(websockets.CloseCode.MANDATORY_EXTENSION)
+        logging.info("received empty request")
+        return
+    logging.info("started a connection to %s", ws.request.path)
+    try:
+        hello = await ws.recv()
+        login = dc.Login.model_validate_json(hello)  # validate data
+
+    except websockets.ConnectionClosed as err:
+        logging.info("connection rapidly closed for %s", err.reason)
+        return
+
+    except pydantic.ValidationError as err:
+        logging.debug("validation error from %s", err.errors())
+        await ws.close(websockets.CloseCode.PROTOCOL_ERROR)
+        return
+
+    gid = ws.request.path.removeprefix("/")
+
+    try:
+        dbaccess = DBAccess(gid=gid)
+        dbaccess.authenticate(login)  # authentication
+
+    except LoginFail as fail:
+        time.sleep(
+            4 * random.random()
+        )  # throttles and makes a login timing attack near impossible
+        logging.info("login fail for reason: %s", fail.args[0])
+        await ws.close(websockets.CloseCode.POLICY_VIOLATION)
+        return
+
+    connected.setdefault(gid, set()).add(ws)
+
+    return (dbaccess, connected[gid])
+
+
+def ensure_path(
+    connection: websockets.ServerConnection, request: websockets.Request
+) -> websockets.Response | None:
+    """
+    checks the request has a group id as path,
+    may be replaced with something more comprehensive in the future
+    """
+    if request.path == "/":
+        return connection.respond(HTTPStatus.BAD_REQUEST, "group path required\n")
+    logging.info("rejected a pathless connection")
 
 
 async def main() -> None:
     """
     entrypoint function of the orchastrator server
     """
-    async with serve(on_connect, "0.0.0.0", 443) as server:
-        await server.serve_forever()
+    logging.info("starting up...")
+    async with websockets.asyncio.server.serve(
+        on_connect, port=443, process_request=ensure_path
+    ) as server:
+        loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGTERM, server.close)
+        await server.wait_closed()
 
 
 if __name__ == "__main__":

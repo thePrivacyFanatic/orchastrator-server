@@ -2,12 +2,13 @@
 a CLI utility for configuring the instance as the user 'System'
 """
 
-from pathlib import Path
+import os
+import pathlib
 import sqlite3
 import random
 
 import access
-from dc import Privilege, User
+import dc
 
 
 def main() -> None:
@@ -24,10 +25,9 @@ def main() -> None:
             gid = random.randbytes(
                 8
             ).hex()  # collision chance is 2^-64 which is tolerable
-            path = f"./db/{gid}.db"
             print("generated group ID " + gid)
 
-            with sqlite3.connect(path) as db:
+            with sqlite3.connect(f"./db/{gid}.dbwip") as db:
 
                 db.executescript(
                     """CREATE TABLE users
@@ -50,22 +50,24 @@ def main() -> None:
 
                 print("created tables, accessing")
 
-                dba = access.DBAccess(
-                    User(uid=0, name="SYSTEM", privilege=Privilege.ADMIN), db
-                )
+                dba = access.DBAccess(gid=gid)
+
+                dba.user = dc.systemUser
 
                 username = input("type a username\n > ")
                 password = input("type a password or passphrase\n > ")
 
                 dba.add_user(
-                    username=username, privlage=Privilege.ADMIN, password=password
+                    username=username, privilege=dc.Privilege.ADMIN, password=password
                 )
 
                 print("set up first admin " + username)
+                os.rename(f"./db/{gid}.dbwip", f"./db/{gid}.db")
+                print("renamed to allow access")
         case "r":
             gid = input("enter the id of the group you want to delete:\n")
             try:
-                Path(f"db/{gid}.db").unlink()
+                pathlib.Path(f"db/{gid}.db").unlink()
             except FileNotFoundError:
                 print("id is wrong or group was already deleted")
 
