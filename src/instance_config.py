@@ -27,13 +27,13 @@ def main() -> None:
             ).hex()  # collision chance is 2^-64 which is tolerable
             print("generated group ID " + gid)
 
-            with sqlite3.connect(f"./db/{gid}.dbwip") as db:
+            with sqlite3.connect(f"./db/{gid}.db") as db:
 
                 db.executescript(
                     """CREATE TABLE users
                                  (uid INTEGER PRIMARY KEY AUTOINCREMENT,
                                   username TEXT UNIQUE,
-                                  privlage INTEGER,
+                                  privilege INTEGER,
                                   hash TEXT,
                                   salt TEXT);
                     CREATE TABLE signals 
@@ -62,8 +62,6 @@ def main() -> None:
                 )
 
                 print("set up first admin " + username)
-                os.rename(f"./db/{gid}.dbwip", f"./db/{gid}.db")
-                print("renamed to allow access")
         case "r":
             gid = input("enter the id of the group you want to delete:\n")
             try:
