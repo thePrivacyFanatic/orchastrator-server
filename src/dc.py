@@ -28,22 +28,22 @@ class Privilege(IntEnum):
     every level can do anything the levels below it can
 
     :var ADMIN: the permission to change a groups features, editing automations and high permissions
-    :vartype ADMIN: Literal[0]
+    :vartype ADMIN: Literal[4]
     :var MODERATOR: the permission to add, remove and change lower permissions of users
-    :vartype MODERATOR: Literal[1]
+    :vartype MODERATOR: Literal[3]
     :var PUBLISHER: the permission to send messages and transactions through different automations
     :vartype PUBLISHER: Literal[2]
-    :var SILENCED: the permission to recive messages and transactions published
-    :vartype SILENCED: Literal[3]
-    :var ISOLATED: temporary permission level of users that overreach their
-    :vartype ISOLATED: Literal[4]
+    :var LISTENER: the permission to recive messages and transactions published
+    :vartype LISTENER: Literal[1]
+    :var BANNED: permission level for banned users
+    :vartype BANNED: Literal[0]
     """
 
-    ADMIN = 0
-    MODERATOR = 1
+    ADMIN = 4
+    MODERATOR = 3
     PUBLISHER = 2
-    SILENCED = 3
-    ISOLATED = 4
+    LISTENER = 1
+    BANNED = 0
 
 
 class MessageType(IntEnum):

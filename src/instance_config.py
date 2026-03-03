@@ -40,11 +40,7 @@ def main() -> None:
                                   Timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                                   sender INTEGER,
                                   contents TEXT,
-                                  type INTEGER);
-                    CREATE TABLE objectives 
-                                 (oid INTEGER PRIMARY KEY AUTOINCREMENT,
-                                  name TEXT,
-                                  implementation TEXT)"""
+                                  type INTEGER);"""
                 )
 
                 print("created tables, accessing")

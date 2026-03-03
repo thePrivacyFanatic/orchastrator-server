@@ -71,7 +71,7 @@ class DBAccess:
         if hasher.hash(login.password, salt=entry[4].encode()) != entry[3]:
             raise LoginFail("wrong password")
         # authenticated user
-        if dc.Privilege(entry[2]) == dc.Privilege.ISOLATED:
+        if dc.Privilege(entry[2]) == dc.Privilege.BANNED:
             raise LoginFail(f"user banned {dc.Login.username}")
         self.user = dc.User(
             uid=entry[0], name=login.username, privilege=dc.Privilege(entry[2])
@@ -150,7 +150,7 @@ class DBAccess:
         :return: a user object of the new user
         :rtype: User
         """
-        if self.user.privilege > min(privilege, dc.Privilege.MODERATOR):
+        if self.user.privilege < max(privilege, dc.Privilege.MODERATOR):
             self.isolate()
         salt = token_hex(16)
         phash = hasher.hash(password=password, salt=salt.encode())
@@ -185,7 +185,7 @@ class DBAccess:
         :return: signal notifying users about the objective
         :rtype: Signal
         """
-        if self.user.privilege > dc.Privilege.ADMIN:
+        if self.user.privilege < dc.Privilege.ADMIN:
             self.isolate()
         obj = dc.Objective.from_tuple(
             self._save("objectives", {"implementation": obj.implementation})
@@ -225,7 +225,7 @@ class DBAccess:
         and allow the server to broadcast an isolation notice
         """
         self.user = dc.systemUser
-        sig = self._modify_perms(self.user.uid, dc.Privilege(4))
+        sig = self._modify_perms(self.user.uid, dc.Privilege.BANNED)
         raise BanStop(signal=sig)
 
     def _modify_perms(self, uid: int, privilege: dc.Privilege) -> dc.Signal:
@@ -268,16 +268,14 @@ class DBAccess:
             "SELECT privilege FROM users WHERE uid=?", (uid,)
         ).fetchone()
         if (
-            self.user.privilege > dc.Privilege.MODERATOR
-            # insufficient permission
+            self.user.privilege < dc.Privilege.MODERATOR  # insufficient permission
             or (
                 self.user.privilege == dc.Privilege.MODERATOR
-                and privilege < dc.Privilege.PUBLISHER
+                and privilege > dc.Privilege.PUBLISHER  # mod privilege escelation
             )
-            # mod privilege escelation
-            or self.user.privilege > og_priv
+            or self.user.privilege < og_priv  # userping attempt
         ):
-            # userping attempt
+
             self.isolate()
         else:
             return self._modify_perms(uid, privilege)

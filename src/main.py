@@ -47,7 +47,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
 
     listen = True
 
-    if dbaccess.user.privilege == dc.Privilege.SILENCED:
+    if dbaccess.user.privilege == dc.Privilege.LISTENER:
         listen = False
         await ws.wait_closed()
 
@@ -65,10 +65,14 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
                     content = json.loads(message_received.content)
                     match content["type"]:
                         case "user addition":
-                            dbaccess.add_user(
+                            message_to_relay = dbaccess.add_user(
                                 content["username"],
-                                content["privlage"],
+                                content["privilege"],
                                 content["password"],
+                            )
+                        case "perm":
+                            message_to_relay = dbaccess.set_permission(
+                                uid=content["uid"], privilege=content["new"]
                             )
             if message_to_relay:
                 websockets.asyncio.server.broadcast(
