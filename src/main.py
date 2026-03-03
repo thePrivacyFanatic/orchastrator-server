@@ -58,22 +58,22 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
             match message_received.mtype:
                 case dc.MessageType.INTERNAL:
                     message_to_relay = dbaccess.save_signal(message_received)
-                    websockets.asyncio.server.broadcast(
-                        peers, message_received.model_dump_json()
-                    )
                 case dc.MessageType.EXTERNAL:
                     content = json.loads(message_received.content)
-                    match content["type"]:
-                        case "user addition":
-                            message_to_relay = dbaccess.add_user(
-                                content["username"],
-                                content["privilege"],
-                                content["password"],
-                            )
-                        case "perm":
-                            message_to_relay = dbaccess.set_permission(
-                                uid=content["uid"], privilege=content["new"]
-                            )
+                    try:
+                        match content["type"]:
+                            case "user addition":
+                                message_to_relay = dbaccess.add_user(
+                                    content["username"],
+                                    content["privilege"],
+                                    content["password"],
+                                )
+                            case "perm":
+                                message_to_relay = dbaccess.set_permission(
+                                    uid=content["uid"], privilege=content["new"]
+                                )
+                    except TypeError as err:
+                        logging.error("broken request raised %s", err.with_traceback)
             if message_to_relay:
                 websockets.asyncio.server.broadcast(
                     peers, message_to_relay.model_dump_json()

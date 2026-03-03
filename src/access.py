@@ -72,7 +72,7 @@ class DBAccess:
             raise LoginFail("wrong password")
         # authenticated user
         if dc.Privilege(entry[2]) == dc.Privilege.BANNED:
-            raise LoginFail(f"user banned {dc.Login.username}")
+            raise LoginFail(f"user is banned {dc.Login.username}")
         self.user = dc.User(
             uid=entry[0], name=login.username, privilege=dc.Privilege(entry[2])
         )
@@ -266,7 +266,7 @@ class DBAccess:
         """
         og_priv = self._db.execute(
             "SELECT privilege FROM users WHERE uid=?", (uid,)
-        ).fetchone()
+        ).fetchone()[0]
         if (
             self.user.privilege < dc.Privilege.MODERATOR  # insufficient permission
             or (
