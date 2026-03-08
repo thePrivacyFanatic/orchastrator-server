@@ -1,5 +1,6 @@
 """module containing the dbaccess class which inherits from a sqlite connction"""
 
+import logging
 import sqlite3
 from secrets import token_hex
 from os.path import isfile
@@ -11,8 +12,15 @@ import dc
 class LoginFail(Exception):
     """
     an exception indicating an incorrect login, should always be caught
-    has a reason string as the first arg (nonexistent group/user, wrong credentials and instfficient permission)
+    has a reason string as the first arg
+    (nonexistent group/user, wrong credentials and insufficient permission)
     """
+
+    reason: str
+
+    def __init__(self, reason: str, *args: object) -> None:
+        super().__init__(*args)
+        self.reason = reason
 
 
 class BanStop(Exception):
@@ -24,10 +32,12 @@ class BanStop(Exception):
     """
 
     signal: dc.Signal
+    reason: str
 
-    def __init__(self, signal: dc.Signal, *args: object) -> None:
+    def __init__(self, signal: dc.Signal, reason: str, *args: object) -> None:
         super().__init__(*args)
         self.signal = signal
+        self.reason = reason
 
 
 class DBAccess:
@@ -66,13 +76,13 @@ class DBAccess:
                 (login.username,),
             ).fetchone()
         ):
-            raise LoginFail(f"nonexistent user {entry[1]}")
+            raise LoginFail(f"nonexistent user {login.username}")
         # validated user existence
         if hasher.hash(login.password, salt=entry[4].encode()) != entry[3]:
-            raise LoginFail("wrong password")
+            raise LoginFail(f"wrong password for {login.username}")
         # authenticated user
         if dc.Privilege(entry[2]) == dc.Privilege.BANNED:
-            raise LoginFail(f"user is banned {dc.Login.username}")
+            raise LoginFail(f"user is banned {login.username}")
         self.user = dc.User(
             uid=entry[0], name=login.username, privilege=dc.Privilege(entry[2])
         )
@@ -116,7 +126,9 @@ class DBAccess:
         :rtype: Signal
         """
         if message.sid or message.timestamp or message.sender:
-            self.isolate()
+            self.isolate("preconstructed message")
+        if self.user.privilege < dc.Privilege.PUBLISHER:
+            self.isolate("insufficient permissions to publish")
 
         return dc.Signal.from_tuple(
             self._save(
@@ -151,7 +163,7 @@ class DBAccess:
         :rtype: User
         """
         if self.user.privilege < max(privilege, dc.Privilege.MODERATOR):
-            self.isolate()
+            self.isolate("instfficient privileges for user addition")
         salt = token_hex(16)
         phash = hasher.hash(password=password, salt=salt.encode())
 
@@ -186,7 +198,7 @@ class DBAccess:
         :rtype: Signal
         """
         if self.user.privilege < dc.Privilege.ADMIN:
-            self.isolate()
+            self.isolate("insufficient privilege for objective addition")
         obj = dc.Objective.from_tuple(
             self._save("objectives", {"implementation": obj.implementation})
         )
@@ -209,7 +221,7 @@ class DBAccess:
         :rtype: Signal
         """
         if self.user.privilege != dc.Privilege.ADMIN:
-            self.isolate()
+            self.isolate("insufficient privilege for objective addition")
         self._db.execute("DELETE FROM objectives WHERE id=?", (oid,))
         return self.save_signal(
             dc.Signal(
@@ -218,15 +230,16 @@ class DBAccess:
             )
         )
 
-    def isolate(self) -> NoReturn:
+    def isolate(self, reason: str) -> NoReturn:
         """
         demotes the current user to isolated
         then throws a BanStop to immediatly halt all connection with said user
         and allow the server to broadcast an isolation notice
         """
+        uid = self.user.uid
         self.user = dc.systemUser
-        sig = self._modify_perms(self.user.uid, dc.Privilege.BANNED)
-        raise BanStop(signal=sig)
+        sig = self._modify_perms(uid, dc.Privilege.BANNED)
+        raise BanStop(signal=sig, reason=reason)
 
     def _modify_perms(self, uid: int, privilege: dc.Privilege) -> dc.Signal:
         """
@@ -246,7 +259,6 @@ class DBAccess:
             )
         return self.save_signal(
             dc.Signal(
-                sender=self.user.uid,
                 content=f'{{"type" : "perm", "uid" : {uid}, "new": {privilege}}}',
                 mtype=dc.MessageType.EXTERNAL,
             )
@@ -264,9 +276,17 @@ class DBAccess:
         :return: signal to notify users of the promotion
         :rtype: Signal
         """
-        og_priv = self._db.execute(
-            "SELECT privilege FROM users WHERE uid=?", (uid,)
-        ).fetchone()[0]
+        og_priv = dc.Privilege(
+            self._db.execute(
+                "SELECT privilege FROM users WHERE uid=?", (uid,)
+            ).fetchone()[0]
+        )
+        logging.debug(
+            "started perm change by %s to change a %s to %s",
+            self.user.privilege,
+            og_priv,
+            privilege,
+        )
         if (
             self.user.privilege < dc.Privilege.MODERATOR  # insufficient permission
             or (
@@ -276,7 +296,7 @@ class DBAccess:
             or self.user.privilege < og_priv  # userping attempt
         ):
 
-            self.isolate()
+            self.isolate("disallowed permission change")
         else:
             return self._modify_perms(uid, privilege)
 

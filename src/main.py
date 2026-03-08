@@ -10,6 +10,7 @@ import random
 import asyncio
 import signal
 import time
+from typing import Optional
 import pydantic
 import websockets
 import websockets.asyncio.server
@@ -45,13 +46,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
     for m in dbaccess.sync(last_sid):
         await ws.send(m.model_dump_json())
 
-    listen = True
-
-    if dbaccess.user.privilege == dc.Privilege.LISTENER:
-        listen = False
-        await ws.wait_closed()
-
-    while listen:
+    while True:
         message_to_relay: dc.Signal | None = None
         try:
             message_received = dc.Signal.model_validate_json(await ws.recv())
@@ -72,6 +67,8 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
                                 message_to_relay = dbaccess.set_permission(
                                     uid=content["uid"], privilege=content["new"]
                                 )
+                            case _:
+                                logging.error("unknown external message %s", content)
                     except TypeError as err:
                         logging.error("broken request raised %s", err.with_traceback)
             if message_to_relay:
@@ -90,6 +87,7 @@ async def on_connect(ws: websockets.ServerConnection) -> None:
         except BanStop as ban:
             await ws.close(websockets.CloseCode.POLICY_VIOLATION)
             websockets.asyncio.server.broadcast(peers, ban.signal.model_dump_json())
+            logging.info("banned user for reason: %s", ban.reason)
             break
     peers.remove(ws)
     return
@@ -107,10 +105,7 @@ async def greet(
     :rtype: tuple[DBAccess, set[websockets.ServerConnection]] | None
     """
 
-    if not ws.request:
-        await ws.close(websockets.CloseCode.MANDATORY_EXTENSION)
-        logging.info("received empty request")
-        return
+    assert ws.request  # ensured in proccess_request, here to make the linter shut up
     logging.info("started a connection to %s", ws.request.path)
     try:
         hello = await ws.recv()
@@ -129,31 +124,36 @@ async def greet(
 
     try:
         dbaccess = DBAccess(gid=gid)
+        logging.debug("created access instance")
         dbaccess.authenticate(login)  # authentication
+        logging.debug("authenticated")
 
     except LoginFail as fail:
         time.sleep(
             4 * random.random()
         )  # throttles and makes a login timing attack near impossible
-        logging.info("login fail for reason: %s", fail.args[0])
+        logging.info("login fail for reason: %s", fail.reason)
         await ws.close(websockets.CloseCode.POLICY_VIOLATION)
         return
 
     connected.setdefault(gid, set()).add(ws)
+
+    await ws.send("goahead")
 
     return (dbaccess, connected[gid])
 
 
 def ensure_path(
     connection: websockets.ServerConnection, request: websockets.Request
-) -> websockets.Response | None:
+) -> Optional[websockets.Response]:
     """
     checks the request has a group id as path,
     may be replaced with something more comprehensive in the future
     """
-    if request.path == "/":
+    if request.path == "/" or not request:
+        logging.info("rejected a pathless connection")
         return connection.respond(HTTPStatus.BAD_REQUEST, "group path required\n")
-    logging.info("rejected a pathless connection")
+    return
 
 
 async def main() -> None:
