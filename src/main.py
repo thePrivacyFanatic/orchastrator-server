@@ -22,7 +22,7 @@ from access import DBAccess, BanStop, LoginFail
 
 connected: dict[str, set[websockets.ServerConnection]] = {}
 hasher = argon2.PasswordHasher()
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 async def on_connect(ws: websockets.ServerConnection) -> None:
