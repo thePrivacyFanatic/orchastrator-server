@@ -3,12 +3,15 @@ main module for the orchastrator server
 
 """
 
+from genericpath import isfile
 from http import HTTPStatus
 import json
 import logging
 import random
 import asyncio
 import signal
+from ssl import SSLContext
+import ssl
 import time
 from typing import Optional
 import pydantic
@@ -22,7 +25,7 @@ from access import DBAccess, BanStop, LoginFail
 
 connected: dict[str, set[websockets.ServerConnection]] = {}
 hasher = argon2.PasswordHasher()
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 async def on_connect(ws: websockets.ServerConnection) -> None:
@@ -160,9 +163,13 @@ async def main() -> None:
     """
     entrypoint function of the orchastrator server
     """
+    context = None
+    if isfile("ssl.cert") and isfile("ssl.key"):
+        context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        context.load_cert_chain("ssl.cert", "ssl.key")
     logging.info("starting up...")
     async with websockets.asyncio.server.serve(
-        on_connect, port=443, process_request=ensure_path
+        on_connect, port=443, process_request=ensure_path, ssl=context
     ) as server:
         loop = asyncio.get_running_loop()
         loop.add_signal_handler(signal.SIGTERM, server.close)
