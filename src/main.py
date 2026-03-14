@@ -10,7 +10,6 @@ import logging
 import random
 import asyncio
 import signal
-from ssl import SSLContext
 import ssl
 import time
 from typing import Optional
